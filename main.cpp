@@ -1,4 +1,4 @@
-#define SFML_DEBUG  // Debug mesajları için ekle
+#define SFML_DEBUG  // Add for debug messages
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -8,30 +8,30 @@
 #include <cstdlib>
 #include <ctime>
 #include <sstream>
-#include <filesystem> // Eklendi
-#include <optional>   // Eklendi
+#include <filesystem> // Added
+#include <optional>   // Added
 
-// Ses buffer nesnelerini tanımla
+// Define sound buffer objects
 sf::SoundBuffer collisionBuffer;
 sf::SoundBuffer powerUpBuffer;
 sf::SoundBuffer levelUpBuffer;
 sf::SoundBuffer gameOverBuffer;
 
-// Ses nesnelerini ayrı tanımla
+// Define sound objects separately
 sf::Sound collisionSound;
 sf::Sound powerUpSound;
 sf::Sound levelUpSound;
 sf::Sound gameOverSound;
 sf::Music sigma;
 
-float playerX = 0.0f;  
-float playerSpeed = 0.05f;  
-float blockSpeed = 0.01f;  // 0.02f'den 0.01f'e düşürüldü
-int score = 0;  
-int health = 3;  
-int level = 1;  // Yeni eklenen seviye değişkeni
-bool gameOver = false;  
-bool gameStarted = false;  
+float playerX = 0.0f;
+float playerSpeed = 0.05f;
+float blockSpeed = 0.01f;  // Reduced from 0.02f to 0.01f
+int score = 0;
+int health = 3;
+int level = 1;  // Newly added level variable
+bool gameOver = false;
+bool gameStarted = false;
 float backgroundColor = 0.0f;
 bool colorIncreasing = true;
 
@@ -41,8 +41,8 @@ struct Block {
 
 struct PowerUp {
     float x, y;
-    int type;  // 1 = hız, 2 = blok sıfırlama, 3 = görünmezlik
-    float duration;  // Güçlendirme süresi
+    int type;  // 1 = speed, 2 = block reset, 3 = invisibility
+    float duration;  // Power-up duration
 };
 
 std::vector<Block> blocks;
@@ -54,8 +54,8 @@ void resetGame() {
     playerX = 0.0f;
     score = 0;
     health = 3;
-    level = 1;  // Seviyeyi resetle
-    blockSpeed = 0.01f;  // Burada da başlangıç hızını güncelle
+    level = 1;  // Reset level
+    blockSpeed = 0.01f;  // Update initial speed here as well
     gameOver = false;
     blocks.clear();
     powerUps.clear();
@@ -69,7 +69,7 @@ void resetGame() {
         blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f});
     }
 
-    std::cout << "Oyun Sıfırlandı! Yeni oyun başladı!" << std::endl;
+    std::cout << "Game Reset! New game started!" << std::endl;
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
@@ -106,13 +106,13 @@ void drawRectangle(float x, float y, float width, float height, float r, float g
 void drawPowerUp(const PowerUp& powerUp) {
     float r = 0.0f, g = 0.0f, b = 0.0f;
     switch (powerUp.type) {
-        case 1: // Hız - Yeşil
+        case 1: // Speed - Green
             g = 1.0f;
             break;
-        case 2: // Blok sıfırlama - Mavi
+        case 2: // Block reset - Blue
             b = 1.0f;
             break;
-        case 3: // Görünmezlik - Sarı
+        case 3: // Invisibility - Yellow
             r = 1.0f;
             g = 1.0f;
             break;
@@ -123,11 +123,11 @@ void drawPowerUp(const PowerUp& powerUp) {
 void updateWindowTitle(GLFWwindow* window) {
     std::ostringstream title;
     if (!gameStarted) {
-        title << "Oyuna Hos Geldiniz! ENTER'a Basiniz.";
+        title << "Welcome to the Game! Press ENTER.";
     } else if (gameOver) {
-        title << "Oyun Bitti! Skor: " << score << " | ENTER ile Yeniden Başlat";
+        title << "Game Over! Score: " << score << " | Press ENTER to Restart";
     } else {
-        title << "Kaçınma Oyunu | Seviye: " << level << " | Skor: " << score << " | Can: " << health;
+        title << "Avoidance Game | Level: " << level << " | Score: " << score << " | Health: " << health;
     }
     glfwSetWindowTitle(window, title.str().c_str());
 }
@@ -135,18 +135,18 @@ void updateWindowTitle(GLFWwindow* window) {
 int main() {
     srand(time(0));
     
-    // SFML hata mesajlarını aktifleştir
+    // Enable SFML error messages
     sf::err().rdbuf(std::cerr.rdbuf());
 
-    // Doğru proje dizinini kullan
+    // Use correct project directory
     std::filesystem::path projectPath = "/Users/melih/GitHub/spd-project";
     std::filesystem::path soundPath = projectPath / "sounds";
     
-    // Debug bilgisi yazdır
+    // Print debug info
     std::cout << "Project directory: " << projectPath.string() << std::endl;
     std::cout << "Sound files directory: " << soundPath.string() << std::endl;
 
-    // Dizin kontrolü
+    // Directory check
     if (!std::filesystem::exists(soundPath)) {
         std::cerr << "Sounds directory not found! Creating..." << std::endl;
         std::filesystem::create_directory(soundPath);
@@ -156,10 +156,10 @@ int main() {
         return -1;
     }
 
-    // Ses dosyalarını yükle
+    // Load sound files
     if (!collisionBuffer.loadFromFile((soundPath / "collision.wav").string())) {
-        std::cerr << "Çarpışma sesi yüklenemedi: " << (soundPath / "collision.wav").string() << std::endl;
-        std::cerr << "Dosya boyutu: " << std::filesystem::file_size(soundPath / "collision.wav") << " bytes" << std::endl;
+        std::cerr << "Collision sound failed to load: " << (soundPath / "collision.wav").string() << std::endl;
+        std::cerr << "File size: " << std::filesystem::file_size(soundPath / "collision.wav") << " bytes" << std::endl;
     } else {
         std::cout << "Collision sound loaded successfully!" << std::endl;
         std::cout << "Sample rate: " << collisionBuffer.getSampleRate() << std::endl;
@@ -169,30 +169,30 @@ int main() {
     }
 
     if (!powerUpBuffer.loadFromFile((soundPath / "pickup.wav").string())) {
-        std::cerr << "Power-up sesi yüklenemedi: " << (soundPath / "pickup.wav").string() << std::endl;
-        return -1;  // Hata durumunda çık
+        std::cerr << "Power-up sound failed to load: " << (soundPath / "pickup.wav").string() << std::endl;
+        return -1;  // Exit on error
     } else {
         powerUpSound.setBuffer(powerUpBuffer);
     }
 
     if (!levelUpBuffer.loadFromFile((soundPath / "levelup.wav").string())) {
-        std::cerr << "Level-up sesi yüklenemedi: " << (soundPath / "levelup.wav").string() << std::endl;
-        return -1;  // Hata durumunda çık
+        std::cerr << "Level-up sound failed to load: " << (soundPath / "levelup.wav").string() << std::endl;
+        return -1;  // Exit on error
     } else {
         levelUpSound.setBuffer(levelUpBuffer);
     }
 
     if (!gameOverBuffer.loadFromFile((soundPath / "gameover.wav").string())) {
-        std::cerr << "Game-over sesi yüklenemedi: " << (soundPath / "gameover.wav").string() << std::endl;
-        return -1;  // Hata durumunda çık
+        std::cerr << "Game-over sound failed to load: " << (soundPath / "gameover.wav").string() << std::endl;
+        return -1;  // Exit on error
     } else {
         gameOverSound.setBuffer(gameOverBuffer);
     }
 
-    // Arkaplan müziğini yükle
+    // Load background music
     if (!sigma.openFromFile((soundPath / "sigma.wav").string())) {
-        std::cerr << "Arkaplan müziği yüklenemedi: " << (soundPath / "sigma.wav").string() << std::endl;
-        return -1;  // Hata durumunda çık
+        std::cerr << "Background music failed to load: " << (soundPath / "sigma.wav").string() << std::endl;
+        return -1;  // Exit on error
     } else {
         sigma.setVolume(30.0f);
         sigma.setLoop(true);
@@ -200,13 +200,13 @@ int main() {
     }
 
     if (!glfwInit()) {
-        std::cerr << "GLFW başlatılamadı!" << std::endl;
+        std::cerr << "Failed to initialize GLFW!" << std::endl;
         return -1;
     }
 
-    GLFWwindow* window = glfwCreateWindow(800, 600, "Kaçınma Oyunu", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(800, 600, "Avoidance Game", NULL, NULL);
     if (!window) {
-        std::cerr << "Pencere oluşturulamadı!" << std::endl;
+        std::cerr << "Failed to create window!" << std::endl;
         glfwTerminate();
         return -1;
     }
@@ -214,7 +214,7 @@ int main() {
     glfwMakeContextCurrent(window);
     glewExperimental = GL_TRUE;
     if (glewInit() != GLEW_OK) {
-        std::cerr << "GLEW başlatılamadı!" << std::endl;
+        std::cerr << "Failed to initialize GLEW!" << std::endl;
         return -1;
     }
 
@@ -223,15 +223,15 @@ int main() {
 
     resetGame();
 
-    // Ana döngüde müzik kontrolü ekle (while döngüsünün başına):
+    // Add music control in the main loop (at the beginning of the while loop):
     while (!glfwWindowShouldClose(window)) {
-        // Müzik kontrolü
+        // Music control
         if (sigma.getStatus() != sf::SoundSource::Playing) {
             sigma.play();
         }
-        // Arka plan rengi animasyonu
+        // Background color animation
         if (colorIncreasing) {
-            backgroundColor += 0.001f; // Daha yavaş geçiş için 0.005f yerine 0.001f
+            backgroundColor += 0.001f; // Slower transition, changed from 0.005f to 0.001f
         } else {
             backgroundColor -= 0.001f;
         }
@@ -243,22 +243,22 @@ int main() {
             colorIncreasing = true;
         }
 
-        // Dinamik arka plan rengi
+        // Dynamic background color
         glClearColor(
-            backgroundColor * 0.2f,        // Koyu mavi tonu için
-            backgroundColor * 0.1f,        // Çok az yeşil
-            0.3f + backgroundColor * 0.2f, // Mavi baz renk
+            backgroundColor * 0.2f,        // Dark blue shade
+            backgroundColor * 0.1f,        // Slight green
+            0.3f + backgroundColor * 0.2f, // Base blue color
             1.0f
         );
         glClear(GL_COLOR_BUFFER_BIT);
 
-        updateWindowTitle(window); // **Pencere başlığına skor ve oyun durumu yazdır**
+        updateWindowTitle(window); // **Display score and game status in window title**
 
         if (!gameStarted) {
-            std::cout << "Oyuna Hos Geldiniz! ENTER'a basiniz." << std::endl;
+            std::cout << "Welcome to the Game! Press ENTER." << std::endl;
         }
         else if (!gameOver) {
-            // Oyuncuyu çiz (görünmezse yarı saydam)
+            // Draw player (semi-transparent if invisible)
             if (!isInvisible) {
                 drawRectangle(playerX, -0.8f, 0.1f, 0.1f, 0.0f, 1.0f, 0.0f);
             } else {
@@ -268,38 +268,38 @@ int main() {
                 glDisable(GL_BLEND);
             }
 
-            // Power-up oluştur
+            // Create power-up
             if (rand() % 500 == 0) {
                 powerUps.push_back({
                     (rand() % 200 - 100) / 100.0f, 
                     1.0f, 
                     rand() % 3 + 1,
-                    5.0f  // 5 saniyelik süre
+                    5.0f  // 5 seconds duration
                 });
             }
 
-            // Power-up'ları güncelle ve çiz
+            // Update and draw power-ups
             for (auto it = powerUps.begin(); it != powerUps.end();) {
                 it->y -= blockSpeed;
                 drawPowerUp(*it);
 
-                // Power-up alındığında
+                // When power-up is collected
                 if (it->y < -0.7f && it->y > -0.9f && it->x < playerX + 0.1f && it->x + 0.1f > playerX) {
-                    powerUpSound.play();  // Power-up sesi
+                    powerUpSound.play();  // Power-up sound
                     switch (it->type) {
-                        case 1: // Hız
+                        case 1: // Speed
                             playerSpeed += 0.02f;
-                            std::cout << "Hız Artırıldı!" << std::endl;
+                            std::cout << "Speed Increased!" << std::endl;
                             break;
-                        case 2: // Blok sıfırlama
+                        case 2: // Block reset
                             blocks.clear();
                             blocks.push_back({(rand() % 200 - 100) / 100.0f});
-                            std::cout << "Bloklar Temizlendi!" << std::endl;
+                            std::cout << "Blocks Cleared!" << std::endl;
                             break;
-                        case 3: // Görünmezlik
+                        case 3: // Invisibility
                             isInvisible = true;
                             invisibilityTimer = 5.0f;
-                            std::cout << "Görünmezlik Aktif!" << std::endl;
+                            std::cout << "Invisibility Activated!" << std::endl;
                             break;
                     }
                     it = powerUps.erase(it);
@@ -310,12 +310,12 @@ int main() {
                 }
             }
 
-            // Görünmezlik süresini güncelle
+            // Update invisibility timer
             if (isInvisible) {
-                invisibilityTimer -= 0.016f; // yaklaşık 60 FPS
+                invisibilityTimer -= 0.016f; // approximately 60 FPS
                 if (invisibilityTimer <= 0) {
                     isInvisible = false;
-                    std::cout << "Görünmezlik Sona Erdi!" << std::endl;
+                    std::cout << "Invisibility Ended!" << std::endl;
                 }
             }
 
@@ -328,35 +328,35 @@ int main() {
                     block.y = 1.0f;
                     score++;
                     
-                    // Seviye sistemi
-                    // Seviye atladığında
+                    // Level system
+                    // When level up
                     if (score % 10 == 0) {
-                        levelUpSound.play();  // Seviye atlama sesi
+                        levelUpSound.play();  // Level up sound
                         level++;
-                        blockSpeed += 0.0005f;  // 0.001f'den 0.0005f'e düşürüldü
-                        blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f});  // Yeni blok ekle
-                        std::cout << "Yeni Seviye: " << level << " | Blok Sayisi: " << blocks.size() 
-                                 << " | Blok Hizi: " << blockSpeed << std::endl;
+                        blockSpeed += 0.0005f;  // Reduced from 0.001f to 0.0005f
+                        blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f});  // Add new block
+                        std::cout << "New Level: " << level << " | Block Count: " << blocks.size() 
+                                 << " | Block Speed: " << blockSpeed << std::endl;
                     } else {
-                        blockSpeed += 0.00005f;  // 0.0001f'den 0.00005f'e düşürüldü
+                        blockSpeed += 0.00005f;  // Reduced from 0.0001f to 0.00005f
                     }
                     
-                    std::cout << "Skor: " << score << std::endl;
+                    std::cout << "Score: " << score << std::endl;
                 }
 
-                // Çarpışma durumunda
+                // On collision
                 if (block.y < -0.7f && block.y > -0.9f && block.x < playerX + 0.1f && block.x + 0.1f > playerX) {
                     health--;
-                    collisionSound.play();  // Çarpışma sesi
-                    // Oyun bitti durumunda
+                    collisionSound.play();  // Collision sound
+                    // On game over
                     if (health <= 0) {
-                        gameOverSound.play();  // Game over sesi
-                        sigma.stop();  // Arkaplan müziğini durdur
+                        gameOverSound.play();  // Game over sound
+                        sigma.stop();  // Stop background music
                         gameOver = true;
                     } else {
-                        std::cout << "Kalan Can: " << health << std::endl;
-                        block.y = 1.0f;  // Blok yeniden başlat
-                        block.x = (rand() % 200 - 100) / 100.0f;  // Yeni rastgele x pozisyonu
+                        std::cout << "Remaining Health: " << health << std::endl;
+                        block.y = 1.0f;  // Reset block
+                        block.x = (rand() % 200 - 100) / 100.0f;  // New random x position
                     }
                 }
             }
