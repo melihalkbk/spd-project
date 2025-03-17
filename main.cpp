@@ -22,7 +22,7 @@ sf::Sound collisionSound;
 sf::Sound powerUpSound;
 sf::Sound levelUpSound;
 sf::Sound gameOverSound;
-sf::Music backgroundMusic;
+sf::Music sigma;
 
 float playerX = 0.0f;  
 float playerSpeed = 0.05f;  
@@ -190,13 +190,13 @@ int main() {
     }
 
     // Arkaplan müziğini yükle
-    if (!backgroundMusic.openFromFile((soundPath / "background.wav").string())) {
-        std::cerr << "Arkaplan müziği yüklenemedi: " << (soundPath / "background.wav").string() << std::endl;
+    if (!sigma.openFromFile((soundPath / "sigma.wav").string())) {
+        std::cerr << "Arkaplan müziği yüklenemedi: " << (soundPath / "sigma.wav").string() << std::endl;
         return -1;  // Hata durumunda çık
     } else {
-        backgroundMusic.setVolume(30.0f);
-        backgroundMusic.setLoop(true);
-        backgroundMusic.play();
+        sigma.setVolume(30.0f);
+        sigma.setLoop(true);
+        sigma.play();
     }
 
     if (!glfwInit()) {
@@ -226,8 +226,8 @@ int main() {
     // Ana döngüde müzik kontrolü ekle (while döngüsünün başına):
     while (!glfwWindowShouldClose(window)) {
         // Müzik kontrolü
-        if (backgroundMusic.getStatus() != sf::SoundSource::Playing) {
-            backgroundMusic.play();
+        if (sigma.getStatus() != sf::SoundSource::Playing) {
+            sigma.play();
         }
         // Arka plan rengi animasyonu
         if (colorIncreasing) {
@@ -351,7 +351,7 @@ int main() {
                     // Oyun bitti durumunda
                     if (health <= 0) {
                         gameOverSound.play();  // Game over sesi
-                        backgroundMusic.stop();  // Arkaplan müziğini durdur
+                        sigma.stop();  // Arkaplan müziğini durdur
                         gameOver = true;
                     } else {
                         std::cout << "Kalan Can: " << health << std::endl;
