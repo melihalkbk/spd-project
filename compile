@@ -1,0 +1,1 @@
+g++ -std=c++17 main.cpp -o myGame -I/opt/homebrew/include -L/opt/homebrew/lib -framework OpenGL -lglfw -lglew -lsfml-audio -lsfml-system
