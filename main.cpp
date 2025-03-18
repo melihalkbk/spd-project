@@ -26,14 +26,21 @@ sf::Music sigma;
 
 float playerX = 0.0f;
 float playerSpeed = 0.05f;
-float blockSpeed = 0.01f;  // Reduced from 0.02f to 0.01f
+float blockSpeed = 0.01f;  
 int score = 0;
 int health = 3;
-int level = 1;  // Newly added level variable
+int level = 1;  
 bool gameOver = false;
 bool gameStarted = false;
 float backgroundColor = 0.0f;
 bool colorIncreasing = true;
+
+// Add after other global variables
+bool isMuted = false;
+float previousVolume = 30.0f;  // Store previous volume for unmuting
+
+// Add after other global variables
+bool isPaused = false;
 
 struct Block {
     float x, y;
@@ -76,8 +83,44 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
 }
 
+// Update key_callback function
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+    if (action == GLFW_PRESS) {
+        // Add pause toggle
+        if (key == GLFW_KEY_P && gameStarted && !gameOver) {
+            isPaused = !isPaused;
+            if (isPaused) {
+                sigma.pause();  // Pause background music
+                std::cout << "Game Paused" << std::endl;
+            } else {
+                sigma.play();   // Resume background music
+                std::cout << "Game Resumed" << std::endl;
+            }
+        }
+
+        // Add mute toggle
+        if (key == GLFW_KEY_M) {
+            isMuted = !isMuted;
+            if (isMuted) {
+                // Store current volume and mute all sounds
+                previousVolume = sigma.getVolume();
+                sigma.setVolume(0.0f);
+                collisionSound.setVolume(0.0f);
+                powerUpSound.setVolume(0.0f);
+                levelUpSound.setVolume(0.0f);
+                gameOverSound.setVolume(0.0f);
+                std::cout << "Sound muted" << std::endl;
+            } else {
+                // Restore previous volume
+                sigma.setVolume(previousVolume);
+                collisionSound.setVolume(100.0f);
+                powerUpSound.setVolume(100.0f);
+                levelUpSound.setVolume(100.0f);
+                gameOverSound.setVolume(100.0f);
+                std::cout << "Sound unmuted" << std::endl;
+            }
+        }
+
         if (!gameStarted && key == GLFW_KEY_ENTER) {
             gameStarted = true;
             resetGame();
@@ -126,6 +169,8 @@ void updateWindowTitle(GLFWwindow* window) {
         title << "Welcome to the Game! Press ENTER.";
     } else if (gameOver) {
         title << "Game Over! Score: " << score << " | Press ENTER to Restart";
+    } else if (isPaused) {
+        title << "PAUSED | Press P to Resume";
     } else {
         title << "Avoidance Game | Level: " << level << " | Score: " << score << " | Health: " << health;
     }
@@ -258,107 +303,112 @@ int main() {
             std::cout << "Welcome to the Game! Press ENTER." << std::endl;
         }
         else if (!gameOver) {
-            // Draw player (semi-transparent if invisible)
-            if (!isInvisible) {
-                drawRectangle(playerX, -0.8f, 0.1f, 0.1f, 0.0f, 1.0f, 0.0f);
-            } else {
-                glEnable(GL_BLEND);
-                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-                drawRectangle(playerX, -0.8f, 0.1f, 0.1f, 0.0f, 1.0f, 0.0f);
-                glDisable(GL_BLEND);
-            }
-
-            // Create power-up
-            if (rand() % 500 == 0) {
-                powerUps.push_back({
-                    (rand() % 200 - 100) / 100.0f, 
-                    1.0f, 
-                    rand() % 3 + 1,
-                    5.0f  // 5 seconds duration
-                });
-            }
-
-            // Update and draw power-ups
-            for (auto it = powerUps.begin(); it != powerUps.end();) {
-                it->y -= blockSpeed;
-                drawPowerUp(*it);
-
-                // When power-up is collected
-                if (it->y < -0.7f && it->y > -0.9f && it->x < playerX + 0.1f && it->x + 0.1f > playerX) {
-                    powerUpSound.play();  // Power-up sound
-                    switch (it->type) {
-                        case 1: // Speed
-                            playerSpeed += 0.02f;
-                            std::cout << "Speed Increased!" << std::endl;
-                            break;
-                        case 2: // Block reset
-                            blocks.clear();
-                            blocks.push_back({(rand() % 200 - 100) / 100.0f});
-                            std::cout << "Blocks Cleared!" << std::endl;
-                            break;
-                        case 3: // Invisibility
-                            isInvisible = true;
-                            invisibilityTimer = 5.0f;
-                            std::cout << "Invisibility Activated!" << std::endl;
-                            break;
-                    }
-                    it = powerUps.erase(it);
-                } else if (it->y < -1.0f) {
-                    it = powerUps.erase(it);
+            if (!isPaused) {  // Only update game state if not paused
+                // Draw player (semi-transparent if invisible)
+                if (!isInvisible) {
+                    drawRectangle(playerX, -0.8f, 0.1f, 0.1f, 0.0f, 1.0f, 0.0f);
                 } else {
-                    ++it;
+                    glEnable(GL_BLEND);
+                    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                    drawRectangle(playerX, -0.8f, 0.1f, 0.1f, 0.0f, 1.0f, 0.0f);
+                    glDisable(GL_BLEND);
                 }
-            }
 
-            // Update invisibility timer
-            if (isInvisible) {
-                invisibilityTimer -= 0.016f; // approximately 60 FPS
-                if (invisibilityTimer <= 0) {
-                    isInvisible = false;
-                    std::cout << "Invisibility Ended!" << std::endl;
+                // Create power-up
+                if (rand() % 500 == 0) {
+                    powerUps.push_back({
+                        (rand() % 200 - 100) / 100.0f, 
+                        1.0f, 
+                        rand() % 3 + 1,
+                        5.0f  // 5 seconds duration
+                    });
                 }
-            }
 
-            for (auto& block : blocks) {
-                block.y -= blockSpeed;
-                drawRectangle(block.x, block.y, 0.1f, 0.1f, 1.0f, 0.0f, 0.0f);
+                // Update and draw power-ups
+                for (auto it = powerUps.begin(); it != powerUps.end();) {
+                    it->y -= blockSpeed;
+                    drawPowerUp(*it);
 
-                if (block.y < -1.0f) {
-                    block.x = (rand() % 200 - 100) / 100.0f;
-                    block.y = 1.0f;
-                    score++;
-                    
-                    // Level system
-                    // When level up
-                    if (score % 10 == 0) {
-                        levelUpSound.play();  // Level up sound
-                        level++;
-                        blockSpeed += 0.0005f;  // Reduced from 0.001f to 0.0005f
-                        blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f});  // Add new block
-                        std::cout << "New Level: " << level << " | Block Count: " << blocks.size() 
-                                 << " | Block Speed: " << blockSpeed << std::endl;
+                    // When power-up is collected
+                    if (it->y < -0.7f && it->y > -0.9f && it->x < playerX + 0.1f && it->x + 0.1f > playerX) {
+                        powerUpSound.play();  // Power-up sound
+                        switch (it->type) {
+                            case 1: // Speed
+                                playerSpeed += 0.02f;
+                                std::cout << "Speed Increased!" << std::endl;
+                                break;
+                            case 2: // Block reset
+                                blocks.clear();
+                                blocks.push_back({(rand() % 200 - 100) / 100.0f});
+                                std::cout << "Blocks Cleared!" << std::endl;
+                                break;
+                            case 3: // Invisibility
+                                isInvisible = true;
+                                invisibilityTimer = 5.0f;
+                                std::cout << "Invisibility Activated!" << std::endl;
+                                break;
+                        }
+                        it = powerUps.erase(it);
+                    } else if (it->y < -1.0f) {
+                        it = powerUps.erase(it);
                     } else {
-                        blockSpeed += 0.00005f;  // Reduced from 0.0001f to 0.00005f
-                    }
-                    
-                    std::cout << "Score: " << score << std::endl;
-                }
-
-                // On collision
-                if (block.y < -0.7f && block.y > -0.9f && block.x < playerX + 0.1f && block.x + 0.1f > playerX) {
-                    health--;
-                    collisionSound.play();  // Collision sound
-                    // On game over
-                    if (health <= 0) {
-                        gameOverSound.play();  // Game over sound
-                        sigma.stop();  // Stop background music
-                        gameOver = true;
-                    } else {
-                        std::cout << "Remaining Health: " << health << std::endl;
-                        block.y = 1.0f;  // Reset block
-                        block.x = (rand() % 200 - 100) / 100.0f;  // New random x position
+                        ++it;
                     }
                 }
+
+                // Update invisibility timer
+                if (isInvisible) {
+                    invisibilityTimer -= 0.016f; // approximately 60 FPS
+                    if (invisibilityTimer <= 0) {
+                        isInvisible = false;
+                        std::cout << "Invisibility Ended!" << std::endl;
+                    }
+                }
+
+                for (auto& block : blocks) {
+                    block.y -= blockSpeed;
+                    drawRectangle(block.x, block.y, 0.1f, 0.1f, 1.0f, 0.0f, 0.0f);
+
+                    if (block.y < -1.0f) {
+                        block.x = (rand() % 200 - 100) / 100.0f;
+                        block.y = 1.0f;
+                        score++;
+                        
+                        // Level system
+                        // When level up
+                        if (score % 10 == 0) {
+                            levelUpSound.play();  // Level up sound
+                            level++;
+                            blockSpeed += 0.0005f;  // Reduced from 0.001f to 0.0005f
+                            blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f});  // Add new block
+                            std::cout << "New Level: " << level << " | Block Count: " << blocks.size() 
+                                     << " | Block Speed: " << blockSpeed << std::endl;
+                        } else {
+                            blockSpeed += 0.00005f;  // Reduced from 0.0001f to 0.00005f
+                        }
+                        
+                        std::cout << "Score: " << score << std::endl;
+                    }
+
+                    // On collision
+                    if (block.y < -0.7f && block.y > -0.9f && block.x < playerX + 0.1f && block.x + 0.1f > playerX) {
+                        health--;
+                        collisionSound.play();  // Collision sound
+                        // On game over
+                        if (health <= 0) {
+                            gameOverSound.play();  // Game over sound
+                            sigma.stop();  // Stop background music
+                            gameOver = true;
+                        } else {
+                            std::cout << "Remaining Health: " << health << std::endl;
+                            block.y = 1.0f;  // Reset block
+                            block.x = (rand() % 200 - 100) / 100.0f;  // New random x position
+                        }
+                    }
+                }
+            } else {
+                // Draw "PAUSED" text or pause screen
+                updateWindowTitle(window);  // Update window title to show pause state
             }
         }
 
