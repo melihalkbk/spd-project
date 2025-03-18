@@ -1,15 +1,15 @@
 #define SFML_DEBUG  // Add for debug messages
 
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
-#include <SFML/Audio.hpp>
-#include <iostream>
-#include <vector>
-#include <cstdlib>
-#include <ctime>
-#include <sstream>
-#include <filesystem> // Added
-#include <optional>   // Added
+#include <GL/glew.h> //Add for graphic design
+#include <GLFW/glfw3.h> //Add for graphic design
+#include <SFML/Audio.hpp> //Add for sound
+#include <iostream> //For input-output stream
+#include <vector> //For vector operations
+#include <cstdlib> //For random number generation
+#include <ctime> //For time
+#include <sstream> //For string stream
+#include <filesystem> // For directory operations
+#include <optional>   // For optional type 
 
 // Define sound buffer objects
 sf::SoundBuffer collisionBuffer;
@@ -24,20 +24,20 @@ sf::Sound levelUpSound;
 sf::Sound gameOverSound;
 sf::Music sigma;
 
-float playerX = 0.0f;
+float playerX = 0.0f; //Player position(Yatay)
 float playerSpeed = 0.05f;
-float blockSpeed = 0.01f;  
+float blockSpeed = 0.01f; // Initial block speed(Seviye arttıkça artar)
 int score = 0;
 int health = 3;
 int level = 1;  
 bool gameOver = false;
 bool gameStarted = false;
 float backgroundColor = 0.0f;
-bool colorIncreasing = true;
+bool colorIncreasing = true; // Background color animation direction(Açık/Koyu Tonlarda Değişmesini Sağlar)
 
 // Add after other global variables
-bool isMuted = false;
-float previousVolume = 30.0f;  // Store previous volume for unmuting
+bool isMuted = false; // Mute toggle(Başlangıçta ses kapalı)
+float previousVolume = 30.0f;  // Store previous volume for unmuting(Default volume)
 
 // Add after other global variables
 bool isPaused = false;
@@ -49,38 +49,50 @@ struct Block {
 struct PowerUp {
     float x, y;
     int type;  // 1 = speed, 2 = block reset, 3 = invisibility
-    float duration;  // Power-up duration
+    float duration;  // Power-up duration(Etkin Kalma Süresi)
 };
 
 std::vector<Block> blocks;
 std::vector<PowerUp> powerUps;
-bool isInvisible = false;
-float invisibilityTimer = 0.0f;
+bool isInvisible = false; // Invisibility state
+float invisibilityTimer = 0.0f; 
+
+// Add these global variables after other power-up related variables
+bool hasSpeedBoost = false;
+float speedBoostTimer = 0.0f;
+float originalPlayerSpeed = 0.05f;  // Store original speed
+bool hasBlockReset = false;
+float blockResetTimer = 0.0f;
 
 void resetGame() {
     playerX = 0.0f;
-    score = 0;
-    health = 3;
+    score = 0; // Reset score
+    health = 3; // Reset health
     level = 1;  // Reset level
     blockSpeed = 0.01f;  // Update initial speed here as well
-    gameOver = false;
-    blocks.clear();
-    powerUps.clear();
-    isInvisible = false;
-    invisibilityTimer = 0.0f;
-    playerSpeed = 0.05f;
-    backgroundColor = 0.0f;
-    colorIncreasing = true;
+    gameOver = false; // Reset game over state
+    blocks.clear(); // Clear blocks
+    powerUps.clear(); // Clear power-ups
+    isInvisible = false; // Reset invisibility state
+    invisibilityTimer = 0.0f;   // Reset invisibility timer
+    playerSpeed = 0.05f; // Reset player speed
+    backgroundColor = 0.0f; // Reset background color
+    colorIncreasing = true; // Reset color direction
+    hasSpeedBoost = false;
+    speedBoostTimer = 0.0f;
+    playerSpeed = originalPlayerSpeed;
+    hasBlockReset = false;
+    blockResetTimer = 0.0f;
 
     for (int i = 0; i < 5; i++) {
-        blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f});
+        blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f}); // Add 5 blocks
     }
 
     std::cout << "Game Reset! New game started!" << std::endl;
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
-    glViewport(0, 0, width, height);
+    glViewport(0, 0, width, height); // Set viewport size
 }
 
 // Update key_callback function
@@ -276,7 +288,7 @@ int main() {
         }
         // Background color animation
         if (colorIncreasing) {
-            backgroundColor += 0.001f; // Slower transition, changed from 0.005f to 0.001f
+            backgroundColor += 0.001f; 
         } else {
             backgroundColor -= 0.001f;
         }
@@ -334,18 +346,22 @@ int main() {
                         powerUpSound.play();  // Power-up sound
                         switch (it->type) {
                             case 1: // Speed
-                                playerSpeed += 0.02f;
-                                std::cout << "Speed Increased!" << std::endl;
+                                hasSpeedBoost = true;
+                                speedBoostTimer = 20.0f;
+                                playerSpeed = originalPlayerSpeed + 0.1f;  // Increased speed boost
+                                std::cout << "Speed Boost Activated for 20 seconds!" << std::endl;
                                 break;
                             case 2: // Block reset
+                                hasBlockReset = true;
+                                blockResetTimer = 20.0f;
                                 blocks.clear();
                                 blocks.push_back({(rand() % 200 - 100) / 100.0f});
-                                std::cout << "Blocks Cleared!" << std::endl;
+                                std::cout << "Blocks Reset Active for 20 seconds!" << std::endl;
                                 break;
-                            case 3: // Invisibility
+                            case 3: // Invisibility (existing code)
                                 isInvisible = true;
-                                invisibilityTimer = 5.0f;
-                                std::cout << "Invisibility Activated!" << std::endl;
+                                invisibilityTimer = 20.0f;
+                                std::cout << "Invisibility Activated for 20 seconds!" << std::endl;
                                 break;
                         }
                         it = powerUps.erase(it);
@@ -356,9 +372,31 @@ int main() {
                     }
                 }
 
-                // Update invisibility timer
+                // Update power-up timers
+                if (hasSpeedBoost) {
+                    speedBoostTimer -= 0.016f;
+                    if (speedBoostTimer <= 0) {
+                        hasSpeedBoost = false;
+                        playerSpeed = originalPlayerSpeed;
+                        std::cout << "Speed Boost Ended!" << std::endl;
+                    }
+                }
+
+                if (hasBlockReset) {
+                    blockResetTimer -= 0.016f;
+                    if (blockResetTimer <= 0) {
+                        hasBlockReset = false;
+                        // Restore normal block generation
+                        while (blocks.size() < level) {
+                            blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f});
+                        }
+                        std::cout << "Block Reset Ended!" << std::endl;
+                    }
+                }
+
+                // Existing invisibility timer update
                 if (isInvisible) {
-                    invisibilityTimer -= 0.016f; // approximately 60 FPS
+                    invisibilityTimer -= 0.016f;
                     if (invisibilityTimer <= 0) {
                         isInvisible = false;
                         std::cout << "Invisibility Ended!" << std::endl;
@@ -379,12 +417,12 @@ int main() {
                         if (score % 10 == 0) {
                             levelUpSound.play();  // Level up sound
                             level++;
-                            blockSpeed += 0.0005f;  // Reduced from 0.001f to 0.0005f
+                            blockSpeed += 0.0005f;  
                             blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f});  // Add new block
                             std::cout << "New Level: " << level << " | Block Count: " << blocks.size() 
                                      << " | Block Speed: " << blockSpeed << std::endl;
                         } else {
-                            blockSpeed += 0.00005f;  // Reduced from 0.0001f to 0.00005f
+                            blockSpeed += 0.00005f; 
                         }
                         
                         std::cout << "Score: " << score << std::endl;
@@ -392,18 +430,21 @@ int main() {
 
                     // On collision
                     if (block.y < -0.7f && block.y > -0.9f && block.x < playerX + 0.1f && block.x + 0.1f > playerX) {
-                        health--;
-                        collisionSound.play();  // Collision sound
-                        // On game over
-                        if (health <= 0) {
-                            gameOverSound.play();  // Game over sound
-                            sigma.stop();  // Stop background music
-                            gameOver = true;
-                        } else {
-                            std::cout << "Remaining Health: " << health << std::endl;
-                            block.y = 1.0f;  // Reset block
-                            block.x = (rand() % 200 - 100) / 100.0f;  // New random x position
+                        if (!isInvisible) {  // Only take damage if not invisible
+                            health--;
+                            collisionSound.play();  // Collision sound
+                            // On game over
+                            if (health <= 0) {
+                                gameOverSound.play();  // Game over sound
+                                sigma.stop();  // Stop background music
+                                gameOver = true;
+                            } else {
+                                std::cout << "Remaining Health: " << health << std::endl;
+                            }
                         }
+                        // Reset block position regardless of invisibility
+                        block.y = 1.0f;  
+                        block.x = (rand() % 200 - 100) / 100.0f;
                     }
                 }
             } else {
