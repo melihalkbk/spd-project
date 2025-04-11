@@ -76,7 +76,7 @@ void resetGame() {
     isInvisible = false; // Reset invisibility state
     invisibilityTimer = 0.0f;   // Reset invisibility timer
     playerSpeed = 0.05f; // Reset player speed
-    backgroundColor = 0.0f; // Reset background color
+    backgroundColor = 0.0f; // Reset background color 
     colorIncreasing = true; // Reset color direction
     hasSpeedBoost = false;
     speedBoostTimer = 0.0f;
@@ -84,8 +84,8 @@ void resetGame() {
     hasBlockReset = false;
     blockResetTimer = 0.0f;
 
-    for (int i = 0; i < 5; i++) {
-        blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f}); // Add 5 blocks
+    for (int i = 0; i < 3; i++) {
+        blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f}); // Add 3 blocks
     }
 
     std::cout << "Game Reset! New game started!" << std::endl;
@@ -413,12 +413,19 @@ int main() {
                         score++;
                         
                         // Level system
-                        // When level up
+                        // Set a maximum number of blocks
+                        const int MAX_BLOCKS = 10;
+
                         if (score % 10 == 0) {
-                            levelUpSound.play();  // Level up sound
+                            levelUpSound.play();
                             level++;
-                            blockSpeed += 0.0005f;  
-                            blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f});  // Add new block
+                            blockSpeed += 0.0005f;
+                            
+                            // Add new block only if under the maximum
+                            if (blocks.size() < MAX_BLOCKS) {
+                                blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f});
+                            }
+                            
                             std::cout << "New Level: " << level << " | Block Count: " << blocks.size() 
                                      << " | Block Speed: " << blockSpeed << std::endl;
                         } else {
