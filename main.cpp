@@ -412,39 +412,42 @@ void drawButton(const std::string& text, float x, float y, float width, float he
     // Draw button background
     drawRectangle(x, y, width, height, r, g, b);
     
-    // Draw text (simplified)
-    float textSize = height * 0.6f;
-    drawRectangle(x + width/2 - textSize*text.length()/4, y - height/2 + textSize/2, 
-                 textSize*text.length()/2, textSize/2, 1.0f, 1.0f, 1.0f);
+    // Display button label with individual letters
+    float fontSize = height * 0.6f;
+    float textX = x + width/2 - text.length() * fontSize * 0.3f;
+    float textY = y - height/4;
+    
+    for (size_t i = 0; i < text.length(); i++) {
+        // Draw each letter as a small colored rectangle
+        float letterX = textX + i * fontSize * 0.6f;
+        drawRectangle(letterX, textY, fontSize * 0.4f, fontSize * 0.8f, 1.0f, 1.0f, 1.0f);
+    }
 }
 
 // Function to draw the main menu
 void drawMainMenu() {
     // Draw title
     float titleSize = 0.2f;
-    float titleX = -0.6f;
-    float titleY = 0.5f;
     
-    // Draw "AVOIDANCE" in big letters
-    for (int i = 0; i < 9; i++) {
-        float hue = (float)i / 9.0f;
+    // Draw "AVOIDANCE GAME" title
+    drawRectangle(-0.6f, 0.7f, 1.2f, titleSize, 0.2f, 0.5f, 0.8f);
+    
+    // Draw color accent lines under title
+    for (int i = 0; i < 10; i++) {
+        float hue = (float)i / 10.0f;
         // Create rainbow effect
         float r = sin(hue * 6.28f) * 0.5f + 0.5f;
         float g = sin((hue + 0.33f) * 6.28f) * 0.5f + 0.5f;
         float b = sin((hue + 0.67f) * 6.28f) * 0.5f + 0.5f;
         
-        // Draw each letter
-        drawRectangle(titleX + i * titleSize * 0.6f, titleY, titleSize * 0.4f, titleSize, r, g, b);
+        drawRectangle(-0.5f + i * 0.1f, 0.5f, 0.08f, 0.03f, r, g, b);
     }
-
-    // Draw "GAME" below the title
-    drawRectangle(titleX + 0.3f, titleY - 0.3f, titleSize * 2.0f, titleSize * 0.3f, 0.0f, 1.0f, 0.5f);
     
     // Draw menu buttons
     float buttonWidth = 0.6f;
     float buttonHeight = 0.1f;
     float buttonX = -buttonWidth/2;
-    float buttonY = 0.0f;
+    float buttonY = 0.2f;
     float spacing = 0.15f;
     
     // Play button
@@ -459,16 +462,20 @@ void drawMainMenu() {
     drawButton("EXIT", buttonX, buttonY - spacing*2, buttonWidth, buttonHeight, 
               menuSelection == 2, 0.5f, 0.1f, 0.1f);
     
-    // Draw instructions
-    float instructY = -0.7f;
-    drawRectangle(-0.6f, instructY, 1.2f, 0.05f, 1.0f, 1.0f, 1.0f); // Instruction text
+    // Draw instructions at bottom
+    drawRectangle(-0.7f, -0.7f, 1.4f, 0.08f, 0.8f, 0.8f, 0.8f);
+    
+    // Draw small arrow indicators near active button
+    if (menuSelection >= 0 && menuSelection <= 2) {
+        float arrowY = buttonY - menuSelection * spacing;
+        drawRectangle(buttonX - 0.1f, arrowY - 0.02f, 0.06f, 0.06f, 1.0f, 1.0f, 0.0f);
+    }
 }
 
 // Function to draw control instructions
 void drawControlsScreen() {
     // Draw title
-    float titleSize = 0.15f;
-    drawRectangle(-0.4f, 0.7f, 0.8f, titleSize, 0.1f, 0.1f, 0.6f);
+    drawRectangle(-0.5f, 0.7f, 1.0f, 0.15f, 0.1f, 0.1f, 0.6f);
     
     // Draw controls
     float y = 0.4f;
@@ -478,15 +485,19 @@ void drawControlsScreen() {
     // Arrow keys control
     drawRectangle(-0.5f, y, 0.1f, 0.1f, 1.0f, 1.0f, 1.0f);  // Left arrow
     drawRectangle(-0.3f, y, 0.1f, 0.1f, 1.0f, 1.0f, 1.0f);  // Right arrow
-    drawRectangle(-0.65f, y - spacing, 0.6f, lineHeight, 0.7f, 0.7f, 0.7f); // "Move player"
+    drawRectangle(0.0f, y - 0.04f, 0.6f, lineHeight, 0.7f, 0.7f, 0.7f); // "Move player"
     
     // P key
-    drawRectangle(-0.5f, y - spacing*2, 0.1f, 0.1f, 1.0f, 1.0f, 1.0f);  // P key
-    drawRectangle(-0.65f, y - spacing*3, 0.5f, lineHeight, 0.7f, 0.7f, 0.7f); // "Pause"
+    drawRectangle(-0.5f, y - spacing*1, 0.1f, 0.1f, 0.2f, 0.8f, 0.2f);  // P key
+    drawRectangle(0.0f, y - spacing*1 - 0.04f, 0.6f, lineHeight, 0.7f, 0.7f, 0.7f); // "Pause"
     
     // M key
-    drawRectangle(-0.5f, y - spacing*4, 0.1f, 0.1f, 1.0f, 1.0f, 1.0f);  // M key
-    drawRectangle(-0.65f, y - spacing*5, 0.5f, lineHeight, 0.7f, 0.7f, 0.7f); // "Mute"
+    drawRectangle(-0.5f, y - spacing*2, 0.1f, 0.1f, 0.8f, 0.2f, 0.2f);  // M key
+    drawRectangle(0.0f, y - spacing*2 - 0.04f, 0.6f, lineHeight, 0.7f, 0.7f, 0.7f); // "Mute"
+    
+    // ESC key
+    drawRectangle(-0.5f, y - spacing*3, 0.1f, 0.1f, 0.8f, 0.8f, 0.2f);  // ESC key
+    drawRectangle(0.0f, y - spacing*3 - 0.04f, 0.6f, lineHeight, 0.7f, 0.7f, 0.7f); // "Exit"
     
     // Back instruction
     drawRectangle(-0.5f, -0.7f, 1.0f, lineHeight, 0.8f, 0.8f, 0.0f); // "Press ESC to return"
@@ -863,11 +874,17 @@ int main() {
                 // Draw "GAME OVER" text
                 drawRectangle(-0.5f, 0.2f, 1.0f, 0.2f, 1.0f, 0.2f, 0.2f);
                 
-                // Draw score
-                drawRectangle(-0.3f, -0.1f, 0.6f, 0.1f, 1.0f, 1.0f, 1.0f);
+                // Draw score display
+                std::string scoreStr = "SCORE: " + std::to_string(score);
+                for (size_t i = 0; i < scoreStr.length(); i++) {
+                    drawRectangle(-0.4f + i * 0.08f, -0.1f, 0.06f, 0.1f, 1.0f, 1.0f, 1.0f);
+                }
                 
-                // Draw instructions
+                // Draw restart instruction
                 drawRectangle(-0.5f, -0.3f, 1.0f, 0.08f, 0.8f, 0.8f, 0.8f);
+                
+                // Draw press ENTER instruction
+                drawRectangle(-0.4f, -0.5f, 0.8f, 0.06f, 0.6f, 0.6f, 0.6f);
                 break;
         }
 
