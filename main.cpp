@@ -10,6 +10,7 @@
 #include <sstream> //For string stream
 #include <filesystem> // For directory operations
 #include <optional>   // For optional type 
+#include <map>  // For std::map
 
 // Define sound buffer objects
 sf::SoundBuffer collisionBuffer;
@@ -66,6 +67,27 @@ struct Particle {
     float size;          // Size
 };
 
+// Font texture and character info
+struct Character {
+    float advanceX;    // Advance X offset
+    float advanceY;    // Advance Y offset
+    float width;       // Character width
+    float height;      // Character height
+    float texX;        // Texture X offset
+    float texY;        // Texture Y offset
+    float texWidth;    // Texture width
+    float texHeight;   // Texture height
+};
+
+// Font texture and characters
+GLuint fontTextureID = 0;
+std::map<char, Character> characters;
+bool fontLoaded = false;
+
+// Font texture size
+const int FONT_TEXTURE_WIDTH = 512;
+const int FONT_TEXTURE_HEIGHT = 512;
+
 std::vector<Block> blocks;
 std::vector<PowerUp> powerUps;
 bool isInvisible = false; // Invisibility state
@@ -92,6 +114,16 @@ enum class GameState {
 
 GameState currentState = GameState::MAIN_MENU;
 int menuSelection = 0; // 0 = Play, 1 = Controls, 2 = Exit
+
+// Add to global variables
+struct Notification {
+    std::string text;
+    float timer;
+    float x, y;
+    float r, g, b;
+};
+
+std::vector<Notification> notifications;
 
 void resetGame() {
     playerX = 0.0f;
@@ -123,6 +155,11 @@ void resetGame() {
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height); // Set viewport size
 }
+
+// Forward declare functions that are used before their definitions
+void drawText(const std::string& text, float x, float y, float size, float r, float g, float b);
+bool loadFont();
+void renderText(const std::string& text, float x, float y, float scale, float r, float g, float b);
 
 // Update key_callback function
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
@@ -249,6 +286,182 @@ void drawRectangle(float x, float y, float width, float height, float r, float g
         glVertex2f(x + width, y - height);
         glVertex2f(x, y - height);
     glEnd();
+}
+
+// Define loadFont and renderText functions here
+bool loadFont() {
+    // Create a pixel array for a simple monospaced font
+    unsigned char* fontData = new unsigned char[FONT_TEXTURE_WIDTH * FONT_TEXTURE_HEIGHT * 4];
+    
+    // Clear font texture to transparent black
+    for (int i = 0; i < FONT_TEXTURE_WIDTH * FONT_TEXTURE_HEIGHT * 4; i += 4) {
+        fontData[i] = 255;     // R
+        fontData[i+1] = 255;   // G
+        fontData[i+2] = 255;   // B
+        fontData[i+3] = 0;     // A (transparent)
+    }
+    
+    // Simple 8x8 bitmap font (we'll create ASCII chars 32-127)
+    // Character width and height in pixels
+    const int charWidth = 16;
+    const int charHeight = 24;
+    const int charsPerRow = FONT_TEXTURE_WIDTH / charWidth;
+    
+    // Draw basic characters - just filling the spaces with different patterns for each char
+    for (int c = 32; c < 128; c++) {
+        int row = (c - 32) / charsPerRow;
+        int col = (c - 32) % charsPerRow;
+        
+        int startX = col * charWidth;
+        int startY = row * charHeight;
+        
+        // Draw character
+        for (int y = 0; y < charHeight; y++) {
+            for (int x = 0; x < charWidth; x++) {
+                int pixelPos = ((startY + y) * FONT_TEXTURE_WIDTH + (startX + x)) * 4;
+                
+                // Simple algorithm to draw letter shapes
+                bool isPixelSet = false;
+                
+                switch (c) {
+                    case 'A':
+                    case 'a':
+                        isPixelSet = (x == 0 || x == charWidth-1 || y == 0 || y == charHeight/2);
+                        break;
+                    case 'B':
+                    case 'b':
+                        isPixelSet = (x == 0 || 
+                                    (y == 0 && x < charWidth-2) || 
+                                    (y == charHeight-1 && x < charWidth-2) ||
+                                    (y == charHeight/2 && x < charWidth-2) || 
+                                    (x == charWidth-2 && (y > 0 && y < charHeight/2-1)) ||
+                                    (x == charWidth-2 && y > charHeight/2+1 && y < charHeight-1));
+                        break;
+                    case 'C':
+                    case 'c':
+                        isPixelSet = ((x == 0 && y > 0 && y < charHeight-1) || 
+                                    (y == 0 && x > 0) || 
+                                    (y == charHeight-1 && x > 0));
+                        break;
+                    default:
+                        // For characters we haven't explicitly defined, create a simple placeholder
+                        isPixelSet = (x == 0 || y == 0 || x == charWidth-1 || y == charHeight-1 || 
+                                     x == y || x == charWidth-y);
+                }
+                
+                if (isPixelSet) {
+                    fontData[pixelPos] = 255;     // R
+                    fontData[pixelPos+1] = 255;   // G
+                    fontData[pixelPos+2] = 255;   // B
+                    fontData[pixelPos+3] = 255;   // A (opaque)
+                }
+            }
+        }
+        
+        // Add character to mapping
+        Character ch;
+        ch.advanceX = charWidth;
+        ch.advanceY = 0;
+        ch.width = charWidth;
+        ch.height = charHeight;
+        ch.texX = (float)startX / FONT_TEXTURE_WIDTH;
+        ch.texY = (float)startY / FONT_TEXTURE_HEIGHT;
+        ch.texWidth = (float)charWidth / FONT_TEXTURE_WIDTH;
+        ch.texHeight = (float)charHeight / FONT_TEXTURE_HEIGHT;
+        
+        characters[c] = ch;
+    }
+    
+    // Create the texture
+    glGenTextures(1, &fontTextureID);
+    glBindTexture(GL_TEXTURE_2D, fontTextureID);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, FONT_TEXTURE_WIDTH, FONT_TEXTURE_HEIGHT, 0, 
+                GL_RGBA, GL_UNSIGNED_BYTE, fontData);
+    
+    // Set texture parameters
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    
+    // Clean up
+    delete[] fontData;
+    
+    fontLoaded = true;
+    return true;
+}
+
+void renderText(const std::string& text, float x, float y, float scale, float r, float g, float b) {
+    if (!fontLoaded) {
+        if (!loadFont()) {
+            // If font loading fails, fall back to rectangle-based text
+            drawText(text, x, y, scale, r, g, b);
+            return;
+        }
+    }
+    
+    // Enable texturing and blending
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, fontTextureID);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    // Set text color
+    glColor3f(r, g, b);
+    
+    float currentX = x;
+    float currentY = y;
+    
+    // Render each character
+    for (char c : text) {
+        // Newline handling
+        if (c == '\n') {
+            currentY -= 30.0f * scale;
+            currentX = x;
+            continue;
+        }
+        
+        // Space handling
+        if (c == ' ') {
+            currentX += 16.0f * scale;
+            continue;
+        }
+        
+        // Skip characters not in our font
+        if (characters.find(c) == characters.end()) {
+            currentX += 16.0f * scale;
+            continue;
+        }
+        
+        Character ch = characters[c];
+        
+        float xpos = currentX;
+        float ypos = currentY - ch.height * scale;
+        
+        // Render the character quad
+        glBegin(GL_QUADS);
+            // Texture coordinates are flipped vertically (OpenGL's texture coordinates start bottom-left)
+            glTexCoord2f(ch.texX, ch.texY + ch.texHeight);
+            glVertex2f(xpos, ypos);
+            
+            glTexCoord2f(ch.texX + ch.texWidth, ch.texY + ch.texHeight);
+            glVertex2f(xpos + ch.width * scale, ypos);
+            
+            glTexCoord2f(ch.texX + ch.texWidth, ch.texY);
+            glVertex2f(xpos + ch.width * scale, ypos + ch.height * scale);
+            
+            glTexCoord2f(ch.texX, ch.texY);
+            glVertex2f(xpos, ypos + ch.height * scale);
+        glEnd();
+        
+        // Advance cursor
+        currentX += ch.advanceX * scale;
+        currentY += ch.advanceY * scale;
+    }
+    
+    // Disable texture and blending when done
+    glDisable(GL_BLEND);
+    glDisable(GL_TEXTURE_2D);
 }
 
 void drawPowerUp(const PowerUp& powerUp) {
@@ -403,7 +616,7 @@ void drawText(const std::string& text, float x, float y, float size, float r, fl
 
 // Draw a button with text
 void drawButton(const std::string& text, float x, float y, float width, float height, 
-                bool selected, float r, float g, float b) {
+               bool selected, float r, float g, float b) {
     if (selected) {
         // Draw highlighted button
         drawRectangle(x - 0.01f, y + 0.01f, width + 0.02f, height + 0.02f, 1.0f, 1.0f, 1.0f);
@@ -412,25 +625,20 @@ void drawButton(const std::string& text, float x, float y, float width, float he
     // Draw button background
     drawRectangle(x, y, width, height, r, g, b);
     
-    // Display button label with individual letters
-    float fontSize = height * 0.6f;
-    float textX = x + width/2 - text.length() * fontSize * 0.3f;
-    float textY = y - height/4;
+    // Calculate text position - center in button
+    float textWidth = text.length() * height * 0.5f;
+    float textX = x + (width - textWidth) / 2.0f;
+    float textY = y - height * 0.1f;
     
-    for (size_t i = 0; i < text.length(); i++) {
-        // Draw each letter as a small colored rectangle
-        float letterX = textX + i * fontSize * 0.6f;
-        drawRectangle(letterX, textY, fontSize * 0.4f, fontSize * 0.8f, 1.0f, 1.0f, 1.0f);
-    }
+    // Render text with our new function
+    renderText(text, textX, textY, height * 0.8f, 1.0f, 1.0f, 1.0f);
 }
 
 // Function to draw the main menu
 void drawMainMenu() {
     // Draw title
     float titleSize = 0.2f;
-    
-    // Draw "AVOIDANCE GAME" title
-    drawRectangle(-0.6f, 0.7f, 1.2f, titleSize, 0.2f, 0.5f, 0.8f);
+    renderText("AVOIDANCE GAME", -0.6f, 0.7f, titleSize, 0.9f, 0.9f, 0.2f);
     
     // Draw color accent lines under title
     for (int i = 0; i < 10; i++) {
@@ -463,7 +671,8 @@ void drawMainMenu() {
               menuSelection == 2, 0.5f, 0.1f, 0.1f);
     
     // Draw instructions at bottom
-    drawRectangle(-0.7f, -0.7f, 1.4f, 0.08f, 0.8f, 0.8f, 0.8f);
+    drawRectangle(-0.7f, -0.7f, 1.4f, 0.08f, 0.2f, 0.2f, 0.2f);
+    renderText("Use UP/DOWN arrows to navigate, ENTER to select", -0.65f, -0.67f, 0.05f, 1.0f, 1.0f, 1.0f);
     
     // Draw small arrow indicators near active button
     if (menuSelection >= 0 && menuSelection <= 2) {
@@ -475,32 +684,44 @@ void drawMainMenu() {
 // Function to draw control instructions
 void drawControlsScreen() {
     // Draw title
-    drawRectangle(-0.5f, 0.7f, 1.0f, 0.15f, 0.1f, 0.1f, 0.6f);
+    renderText("CONTROLS", -0.2f, 0.7f, 0.1f, 0.5f, 0.5f, 1.0f);
     
     // Draw controls
     float y = 0.4f;
-    float lineHeight = 0.08f;
     float spacing = 0.15f;
     
     // Arrow keys control
     drawRectangle(-0.5f, y, 0.1f, 0.1f, 1.0f, 1.0f, 1.0f);  // Left arrow
     drawRectangle(-0.3f, y, 0.1f, 0.1f, 1.0f, 1.0f, 1.0f);  // Right arrow
-    drawRectangle(0.0f, y - 0.04f, 0.6f, lineHeight, 0.7f, 0.7f, 0.7f); // "Move player"
+    renderText("MOVE LEFT/RIGHT", -0.15f, y, 0.06f, 0.7f, 0.7f, 0.7f);
     
     // P key
     drawRectangle(-0.5f, y - spacing*1, 0.1f, 0.1f, 0.2f, 0.8f, 0.2f);  // P key
-    drawRectangle(0.0f, y - spacing*1 - 0.04f, 0.6f, lineHeight, 0.7f, 0.7f, 0.7f); // "Pause"
+    renderText("P", -0.47f, y - spacing*1 + 0.03f, 0.07f, 1.0f, 1.0f, 1.0f);
+    renderText("PAUSE GAME", -0.15f, y - spacing*1, 0.06f, 0.7f, 0.7f, 0.7f);
     
     // M key
     drawRectangle(-0.5f, y - spacing*2, 0.1f, 0.1f, 0.8f, 0.2f, 0.2f);  // M key
-    drawRectangle(0.0f, y - spacing*2 - 0.04f, 0.6f, lineHeight, 0.7f, 0.7f, 0.7f); // "Mute"
+    renderText("M", -0.47f, y - spacing*2 + 0.03f, 0.07f, 1.0f, 1.0f, 1.0f);
+    renderText("MUTE SOUND", -0.15f, y - spacing*2, 0.06f, 0.7f, 0.7f, 0.7f);
     
     // ESC key
     drawRectangle(-0.5f, y - spacing*3, 0.1f, 0.1f, 0.8f, 0.8f, 0.2f);  // ESC key
-    drawRectangle(0.0f, y - spacing*3 - 0.04f, 0.6f, lineHeight, 0.7f, 0.7f, 0.7f); // "Exit"
+    renderText("ESC", -0.49f, y - spacing*3 + 0.03f, 0.05f, 1.0f, 1.0f, 1.0f);
+    renderText("RETURN TO MENU", -0.15f, y - spacing*3, 0.06f, 0.7f, 0.7f, 0.7f);
     
     // Back instruction
-    drawRectangle(-0.5f, -0.7f, 1.0f, lineHeight, 0.8f, 0.8f, 0.0f); // "Press ESC to return"
+    renderText("PRESS ESC TO RETURN TO MAIN MENU", -0.5f, -0.7f, 0.06f, 1.0f, 1.0f, 0.0f);
+}
+
+void showNotification(const std::string& text, float r, float g, float b) {
+    notifications.push_back({
+        text,       // Message
+        3.0f,       // Duration (seconds)
+        -0.3f,      // X position
+        0.7f,       // Y position
+        r, g, b     // Color
+    });
 }
 
 int main() {
@@ -523,7 +744,7 @@ int main() {
         std::filesystem::create_directory(soundPath);
         
         std::cerr << "Please place the following WAV files in " << soundPath.string() << ":" << std::endl;
-        std::cerr << "- collision.wav\n- pickup.wav\n- levelup.wav\n- gameover.wav\n- background.wav" << std::endl;
+        std::cerr << "- collision.wav\n- pickup.wav\n- levelup.wav\n- gameover.wav\n- background.wav\n- sigma.wav" << std::endl;
         return -1;
     }
 
@@ -699,6 +920,7 @@ int main() {
                                     hasSpeedBoost = true;
                                     speedBoostTimer = 20.0f;
                                     playerSpeed = originalPlayerSpeed + 0.1f;  // Increased speed boost
+                                    showNotification("SPEED BOOST!", 0.0f, 1.0f, 0.0f);
                                     std::cout << "Speed Boost Activated for 20 seconds!" << std::endl;
                                     break;
                                 case 2: // Block reset
@@ -706,11 +928,13 @@ int main() {
                                     blockResetTimer = 20.0f;
                                     blocks.clear();
                                     blocks.push_back({(rand() % 200 - 100) / 100.0f});
+                                    showNotification("BLOCKS RESET!", 0.0f, 0.0f, 1.0f);
                                     std::cout << "Blocks Reset Active for 20 seconds!" << std::endl;
                                     break;
                                 case 3: // Invisibility (existing code)
                                     isInvisible = true;
                                     invisibilityTimer = 20.0f;
+                                    showNotification("INVISIBILITY!", 1.0f, 1.0f, 0.0f);
                                     std::cout << "Invisibility Activated for 20 seconds!" << std::endl;
                                     break;
                             }
@@ -872,25 +1096,38 @@ int main() {
                 glDisable(GL_BLEND);
                 
                 // Draw "GAME OVER" text
-                drawRectangle(-0.5f, 0.2f, 1.0f, 0.2f, 1.0f, 0.2f, 0.2f);
+                renderText("GAME OVER", -0.4f, 0.3f, 0.15f, 1.0f, 0.2f, 0.2f);
                 
                 // Draw score display
                 std::string scoreStr = "SCORE: " + std::to_string(score);
-                for (size_t i = 0; i < scoreStr.length(); i++) {
-                    drawRectangle(-0.4f + i * 0.08f, -0.1f, 0.06f, 0.1f, 1.0f, 1.0f, 1.0f);
-                }
+                renderText(scoreStr, -0.2f, 0.0f, 0.1f, 1.0f, 1.0f, 1.0f);
                 
                 // Draw restart instruction
-                drawRectangle(-0.5f, -0.3f, 1.0f, 0.08f, 0.8f, 0.8f, 0.8f);
-                
-                // Draw press ENTER instruction
-                drawRectangle(-0.4f, -0.5f, 0.8f, 0.06f, 0.6f, 0.6f, 0.6f);
+                renderText("PRESS ENTER TO RESTART", -0.4f, -0.3f, 0.08f, 0.8f, 0.8f, 0.8f);
+                renderText("PRESS ESC TO RETURN TO MENU", -0.45f, -0.5f, 0.06f, 0.6f, 0.6f, 0.6f);
                 break;
         }
 
         // Update and draw particles always
         updateParticles(0.016f);
         drawParticles();
+
+        // Draw and update notifications
+        for (auto it = notifications.begin(); it != notifications.end(); ) {
+            renderText(it->text, it->x, it->y, 0.08f, it->r, it->g, it->b);
+            it->timer -= 0.016f;  // Assuming 60fps
+            
+            // Fade out near the end
+            if (it->timer < 0.5f) {
+                // Add fade out animation here
+            }
+            
+            if (it->timer <= 0) {
+                it = notifications.erase(it);
+            } else {
+                ++it;
+            }
+        }
 
         // Update and draw fade effect
         if (fadeInEffect) {
