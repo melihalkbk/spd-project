@@ -17,30 +17,35 @@ sf::SoundBuffer powerUpBuffer;
 sf::SoundBuffer levelUpBuffer;
 sf::SoundBuffer gameOverBuffer;
 
-// Define sound objects separately
-sf::Sound collisionSound;
-sf::Sound powerUpSound;
-sf::Sound levelUpSound;
-sf::Sound gameOverSound;
+// Define sound objects with initial buffer
+sf::Sound collisionSound(collisionBuffer);
+sf::Sound powerUpSound(powerUpBuffer);
+sf::Sound levelUpSound(levelUpBuffer);
+sf::Sound gameOverSound(gameOverBuffer);
 sf::Music sigma;
 
-float playerX = 0.0f; //Player position(Yatay)
+float playerX = 0.0f; //Player position(Horizontal)
 float playerSpeed = 0.05f;
-float blockSpeed = 0.01f; // Initial block speed(Seviye arttıkça artar)
+float blockSpeed = 0.01f; // Initial block speed(Increases with level)
 int score = 0;
 int health = 3;
 int level = 1;  
 bool gameOver = false;
 bool gameStarted = false;
 float backgroundColor = 0.0f;
-bool colorIncreasing = true; // Background color animation direction(Açık/Koyu Tonlarda Değişmesini Sağlar)
+bool colorIncreasing = true; // Background color animation direction(Changes between light/dark tones)
 
 // Add after other global variables
-bool isMuted = false; // Mute toggle(Başlangıçta ses kapalı)
+bool isMuted = false; // Mute toggle(Sound off at start)
 float previousVolume = 30.0f;  // Store previous volume for unmuting(Default volume)
 
 // Add after other global variables
 bool isPaused = false;
+
+// Global variables
+bool fadeInEffect = false;
+bool fadeOutEffect = false;
+float fadeAlpha = 1.0f;
 
 struct Block {
     float x, y;
@@ -49,7 +54,16 @@ struct Block {
 struct PowerUp {
     float x, y;
     int type;  // 1 = speed, 2 = block reset, 3 = invisibility
-    float duration;  // Power-up duration(Etkin Kalma Süresi)
+    float duration;  // Power-up duration(Time active)
+};
+
+// Structures for particle system
+struct Particle {
+    float x, y;          // Position
+    float vx, vy;        // Velocity vector
+    float r, g, b, a;    // Color and transparency (r,g,b,a)
+    float lifetime;      // Lifetime
+    float size;          // Size
 };
 
 std::vector<Block> blocks;
@@ -63,6 +77,10 @@ float speedBoostTimer = 0.0f;
 float originalPlayerSpeed = 0.05f;  // Store original speed
 bool hasBlockReset = false;
 float blockResetTimer = 0.0f;
+
+// Add to global variables section
+std::vector<Particle> particles;
+const int MAX_PARTICLES = 100;  // Maximum number of particles
 
 void resetGame() {
     playerX = 0.0f;
@@ -133,12 +151,17 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             }
         }
 
+        // Game start or end state management
         if (!gameStarted && key == GLFW_KEY_ENTER) {
             gameStarted = true;
             resetGame();
+            fadeInEffect = true;  // Open screen
+            fadeAlpha = 1.0f;     // Start fully dark
         }
         else if (gameOver && key == GLFW_KEY_ENTER) {
             resetGame();
+            fadeInEffect = true;  // Open screen
+            fadeAlpha = 1.0f;
         }
         
         if (gameStarted && !gameOver) {
@@ -187,6 +210,94 @@ void updateWindowTitle(GLFWwindow* window) {
         title << "Avoidance Game | Level: " << level << " | Score: " << score << " | Health: " << health;
     }
     glfwSetWindowTitle(window, title.str().c_str());
+}
+
+// Create new particle
+void spawnParticles(float x, float y, float r, float g, float b, int count) {
+    for (int i = 0; i < count && particles.size() < MAX_PARTICLES; i++) {
+        // Random angle and speed
+        float angle = ((float)rand() / RAND_MAX) * 2 * 3.14159f;
+        float speed = 0.005f + ((float)rand() / RAND_MAX) * 0.01f;
+        
+        Particle p;
+        p.x = x;
+        p.y = y;
+        p.vx = cosf(angle) * speed;
+        p.vy = sinf(angle) * speed;
+        p.r = r;
+        p.g = g;
+        p.b = b;
+        p.a = 1.0f;  // Start fully opaque
+        p.lifetime = 0.5f + ((float)rand() / RAND_MAX) * 0.5f;  // Lifetime between 0.5-1.0 seconds
+        p.size = 0.02f + ((float)rand() / RAND_MAX) * 0.02f;    // Size between 0.02-0.04
+        
+        particles.push_back(p);
+    }
+}
+
+// Draw particles
+void drawParticles() {
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    for (const auto& p : particles) {
+        // Transparency with alpha value
+        glColor4f(p.r, p.g, p.b, p.a);
+        
+        // Draw particle (small square)
+        glBegin(GL_QUADS);
+            glVertex2f(p.x - p.size/2, p.y + p.size/2);
+            glVertex2f(p.x + p.size/2, p.y + p.size/2);
+            glVertex2f(p.x + p.size/2, p.y - p.size/2);
+            glVertex2f(p.x - p.size/2, p.y - p.size/2);
+        glEnd();
+    }
+    
+    glDisable(GL_BLEND);
+}
+
+// Update particles
+void updateParticles(float deltaTime) {
+    for (auto it = particles.begin(); it != particles.end(); ) {
+        it->x += it->vx * deltaTime * 60.0f;  // Velocity * deltaTime
+        it->y += it->vy * deltaTime * 60.0f;
+        it->lifetime -= deltaTime;
+        it->a = it->lifetime;  // Becomes more transparent as lifetime decreases
+        
+        if (it->lifetime <= 0) {
+            it = particles.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+// Draw light effect
+void drawLightEffect(float x, float y, float radius, float r, float g, float b, float intensity) {
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE);  // Additive blending mode
+    
+    // Size for light gradient
+    const int segments = 20;
+    const float fullAngle = 2.0f * 3.14159f;
+    
+    // Draw light ring
+    glBegin(GL_TRIANGLE_FAN);
+        // Center point - full color
+        glColor4f(r, g, b, intensity);
+        glVertex2f(x, y);
+        
+        // Outer edge - transparent
+        glColor4f(r, g, b, 0.0f);
+        for (int i = 0; i <= segments; i++) {
+            float angle = i * fullAngle / segments;
+            float px = x + cosf(angle) * radius;
+            float py = y + sinf(angle) * radius;
+            glVertex2f(px, py);
+        }
+    glEnd();
+    
+    glDisable(GL_BLEND);
 }
 
 int main() {
@@ -252,7 +363,7 @@ int main() {
         return -1;  // Exit on error
     } else {
         sigma.setVolume(30.0f);
-        sigma.setLoop(true);
+        // We'll handle the loop control ourselves
         sigma.play();
     }
 
@@ -282,8 +393,8 @@ int main() {
 
     // Add music control in the main loop (at the beginning of the while loop):
     while (!glfwWindowShouldClose(window)) {
-        // Music control
-        if (sigma.getStatus() != sf::SoundSource::Playing) {
+        // Music control - restart music if it ends
+        if (sigma.getStatus() != sf::Music::Status::Playing && !isPaused && !gameOver) {
             sigma.play();
         }
         // Background color animation
@@ -316,6 +427,9 @@ int main() {
         }
         else if (!gameOver) {
             if (!isPaused) {  // Only update game state if not paused
+                // Add light effect before drawing the player
+                drawLightEffect(playerX + 0.05f, -0.8f, 0.2f, 0.0f, 0.8f, 0.0f, 0.3f);  // Green glow
+
                 // Draw player (semi-transparent if invisible)
                 if (!isInvisible) {
                     drawRectangle(playerX, -0.8f, 0.1f, 0.1f, 0.0f, 1.0f, 0.0f);
@@ -341,9 +455,32 @@ int main() {
                     it->y -= blockSpeed;
                     drawPowerUp(*it);
 
+                    // Add light effect around power-ups
+                    for (const auto& powerUp : powerUps) {
+                        float r = 0.0f, g = 0.0f, b = 0.0f;
+                        switch (powerUp.type) {
+                            case 1: g = 0.8f; break;
+                            case 2: b = 0.8f; break;
+                            case 3: r = g = 0.6f; break;
+                        }
+                        drawLightEffect(powerUp.x + 0.04f, powerUp.y, 0.15f, r, g, b, 0.4f);
+                    }
+
                     // When power-up is collected
                     if (it->y < -0.7f && it->y > -0.9f && it->x < playerX + 0.1f && it->x + 0.1f > playerX) {
                         powerUpSound.play();  // Power-up sound
+                        
+                        // Color based on power-up type
+                        float r = 0.0f, g = 0.0f, b = 0.0f;
+                        switch (it->type) {
+                            case 1: g = 1.0f; break;     // Speed: green
+                            case 2: b = 1.0f; break;     // Reset: blue
+                            case 3: r = g = 1.0f; break; // Invisibility: yellow
+                        }
+                        
+                        // Power-up particles
+                        spawnParticles(it->x + 0.04f, it->y, r, g, b, 15);
+                        
                         switch (it->type) {
                             case 1: // Speed
                                 hasSpeedBoost = true;
@@ -412,14 +549,42 @@ int main() {
                         block.y = 1.0f;
                         score++;
                         
+                        // Small brightness effect every 5 points
+                        if (score % 5 == 0) {
+                            spawnParticles(0.0f, 0.9f, 0.0f, 1.0f, 0.5f, 5);  // Green particles at top of screen
+                        }
+
                         // Level system
                         // Set a maximum number of blocks
                         const int MAX_BLOCKS = 10;
 
+                        // Special effect for each level up
                         if (score % 10 == 0) {
                             levelUpSound.play();
                             level++;
                             blockSpeed += 0.0005f;
+                            
+                            // Level up glow - momentary flash on screen
+                            float intensity = 0.4f;
+                            glEnable(GL_BLEND);
+                            glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+                            
+                            glColor4f(1.0f, 1.0f, 0.8f, intensity);
+                            glBegin(GL_QUADS);
+                                glVertex2f(-1.0f, 1.0f);
+                                glVertex2f(1.0f, 1.0f);
+                                glVertex2f(1.0f, -1.0f);
+                                glVertex2f(-1.0f, -1.0f);
+                            glEnd();
+                            
+                            glDisable(GL_BLEND);
+                            
+                            // Level up particles - distributed across screen
+                            for (int i = 0; i < 5; i++) {
+                                float randomX = -0.9f + ((float)rand() / RAND_MAX) * 1.8f;
+                                float randomY = -0.9f + ((float)rand() / RAND_MAX) * 1.8f;
+                                spawnParticles(randomX, randomY, 1.0f, 1.0f, 0.8f, 10);
+                            }
                             
                             // Add new block only if under the maximum
                             if (blocks.size() < MAX_BLOCKS) {
@@ -440,11 +605,15 @@ int main() {
                         if (!isInvisible) {  // Only take damage if not invisible
                             health--;
                             collisionSound.play();  // Collision sound
+                            // Collision particles (red)
+                            spawnParticles(playerX + 0.05f, -0.8f, 1.0f, 0.3f, 0.2f, 20);
                             // On game over
                             if (health <= 0) {
                                 gameOverSound.play();  // Game over sound
                                 sigma.stop();  // Stop background music
                                 gameOver = true;
+                                fadeOutEffect = true;  // Close screen
+                                fadeAlpha = 0.0f;      // Start transparent
                             } else {
                                 std::cout << "Remaining Health: " << health << std::endl;
                             }
@@ -458,6 +627,51 @@ int main() {
                 // Draw "PAUSED" text or pause screen
                 updateWindowTitle(window);  // Update window title to show pause state
             }
+        }
+
+        // Update and draw particles
+        updateParticles(0.016f);  // Assuming 60 FPS, so deltaTime is approximately 1/60
+        drawParticles();
+
+        // Update and draw fade effect in main loop
+        if (fadeInEffect) {
+            fadeAlpha -= 0.01f;  // Become more transparent each frame
+            if (fadeAlpha <= 0.0f) {
+                fadeAlpha = 0.0f;
+                fadeInEffect = false;
+            }
+            
+            // Draw black overlay
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            glColor4f(0.0f, 0.0f, 0.0f, fadeAlpha);
+            glBegin(GL_QUADS);
+                glVertex2f(-1.0f, 1.0f);
+                glVertex2f(1.0f, 1.0f);
+                glVertex2f(1.0f, -1.0f);
+                glVertex2f(-1.0f, -1.0f);
+            glEnd();
+            glDisable(GL_BLEND);
+        }
+
+        if (fadeOutEffect) {
+            fadeAlpha += 0.01f;  // Become more opaque each frame
+            if (fadeAlpha >= 1.0f) {
+                fadeAlpha = 1.0f;
+                fadeOutEffect = false;
+            }
+            
+            // Draw black overlay
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            glColor4f(0.0f, 0.0f, 0.0f, fadeAlpha);
+            glBegin(GL_QUADS);
+                glVertex2f(-1.0f, 1.0f);
+                glVertex2f(1.0f, 1.0f);
+                glVertex2f(1.0f, -1.0f);
+                glVertex2f(-1.0f, -1.0f);
+            glEnd();
+            glDisable(GL_BLEND);
         }
 
         glfwSwapBuffers(window);

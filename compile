@@ -1,4 +1,7 @@
-g++ -std=c++11 main.cpp -o myGame -I/opt/homebrew/include -L/opt/homebrew/lib -framework OpenGL -lglfw -lglew -lsfml-audio -lsfml-system
-
-echo 'g++ -std=c++11 main.cpp -o myGame -I/opt/homebrew/include -L/opt/homebrew/lib -framework OpenGL -lglfw -lglew -lsfml-audio -lsfml-system' > compile
-chmod +x compile
+g++ -std=c++17 main.cpp -o myGame -I/opt/homebrew/include -L/opt/homebrew/lib -framework OpenGL -lglfw -lglew -lsfml-audio -lsfml-system
+if [ $? -eq 0 ]; then
+  echo "Derleme başarılı! Oyun başlatılıyor..."
+  ./myGame
+else
+  echo "Derleme hatası! Lütfen kodunuzu kontrol edin."
+fi
