@@ -42,7 +42,7 @@ make
 After building, you can start the game with:
 
 ```sh
-./spd-project
+./compile
 ```
 
 ## 🤝 Contributing
