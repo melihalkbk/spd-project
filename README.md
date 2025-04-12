@@ -30,7 +30,7 @@ You need to manually download and include the dependencies in your project.
 Clone and build the project:
 
 ```sh
-git clone https://github.com/username/spd-project.git
+git clone https://github.com/melihalkbk/spd-project.git
 cd spd-project
 mkdir build
 cd build
