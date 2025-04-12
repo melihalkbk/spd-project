@@ -58,15 +58,6 @@ struct PowerUp {
     float duration;  // Power-up duration
 };
 
-// Structures for particle system
-struct Particle {
-    float x, y;          // Position
-    float vx, vy;        // Velocity vector
-    float r, g, b, a;    // Color and transparency (r,g,b,a)
-    float lifetime;      // Lifetime
-    float size;          // Size
-};
-
 // Font texture and character info
 struct Character {
     float advanceX;    // Advance X offset
@@ -100,20 +91,6 @@ float originalPlayerSpeed = 0.05f;
 bool hasBlockReset = false;
 float blockResetTimer = 0.0f;
 
-// Particle system
-std::vector<Particle> particles;
-const int MAX_PARTICLES = 100;
-
-// Notifications
-struct Notification {
-    std::string text;
-    float timer;
-    float x, y;
-    float r, g, b;
-};
-
-std::vector<Notification> notifications;
-
 void resetGame() {
     playerX = 0.0f;
     score = 0;
@@ -122,17 +99,18 @@ void resetGame() {
     blockSpeed = 0.01f;
     gameOver = false;
     blocks.clear();
-    powerUps.clear();
+    powerUps.clear();  
     isInvisible = false;
     invisibilityTimer = 0.0f;
-    playerSpeed = 0.05f;
+    playerSpeed = originalPlayerSpeed;
     backgroundColor = 0.0f;
     colorIncreasing = true;
     hasSpeedBoost = false;
     speedBoostTimer = 0.0f;
-    playerSpeed = originalPlayerSpeed;
     hasBlockReset = false;
     blockResetTimer = 0.0f;
+    
+    // Removed the particle system
 
     for (int i = 0; i < 3; i++) {
         blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f});
@@ -154,13 +132,15 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     if (action == GLFW_PRESS) {
         if (!gameStarted && key == GLFW_KEY_ENTER) {
             gameStarted = true;
-            resetGame();
+            resetGame(); // We call this function
+            powerUps.clear();  // Clear all power-ups
             fadeInEffect = true;
             fadeAlpha = 1.0f;
             sigma.play();
         } 
         else if (gameOver && key == GLFW_KEY_ENTER) {
             resetGame();
+            powerUps.clear(); 
             fadeInEffect = true;
             fadeAlpha = 1.0f;
             sigma.play();
@@ -419,87 +399,6 @@ void updateWindowTitle(GLFWwindow* window) {
     glfwSetWindowTitle(window, title.str().c_str());
 }
 
-// Create new particle
-void spawnParticles(float x, float y, float r, float g, float b, int count) {
-    for (int i = 0; i < count && particles.size() < MAX_PARTICLES; i++) {
-        float angle = ((float)rand() / RAND_MAX) * 2 * 3.14159f;
-        float speed = 0.005f + ((float)rand() / RAND_MAX) * 0.01f;
-        
-        Particle p;
-        p.x = x;
-        p.y = y;
-        p.vx = cosf(angle) * speed;
-        p.vy = sinf(angle) * speed;
-        p.r = r;
-        p.g = g;
-        p.b = b;
-        p.a = 1.0f;
-        p.lifetime = 0.5f + ((float)rand() / RAND_MAX) * 0.5f;
-        p.size = 0.02f + ((float)rand() / RAND_MAX) * 0.02f;
-        
-        particles.push_back(p);
-    }
-}
-
-// Draw particles
-void drawParticles() {
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    
-    for (const auto& p : particles) {
-        glColor4f(p.r, p.g, p.b, p.a);
-        
-        glBegin(GL_QUADS);
-            glVertex2f(p.x - p.size/2, p.y + p.size/2);
-            glVertex2f(p.x + p.size/2, p.y + p.size/2);
-            glVertex2f(p.x + p.size/2, p.y - p.size/2);
-            glVertex2f(p.x - p.size/2, p.y - p.size/2);
-        glEnd();
-    }
-    
-    glDisable(GL_BLEND);
-}
-
-// Update particles
-void updateParticles(float deltaTime) {
-    for (auto it = particles.begin(); it != particles.end(); ) {
-        it->x += it->vx * deltaTime * 60.0f;
-        it->y += it->vy * deltaTime * 60.0f;
-        it->lifetime -= deltaTime;
-        it->a = it->lifetime;
-        
-        if (it->lifetime <= 0) {
-            it = particles.erase(it);
-        } else {
-            ++it;
-        }
-    }
-}
-
-// Draw light effect
-void drawLightEffect(float x, float y, float radius, float r, float g, float b, float intensity) {
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-    
-    const int segments = 20;
-    const float fullAngle = 2.0f * 3.14159f;
-    
-    glBegin(GL_TRIANGLE_FAN);
-        glColor4f(r, g, b, intensity);
-        glVertex2f(x, y);
-        
-        glColor4f(r, g, b, 0.0f);
-        for (int i = 0; i <= segments; i++) {
-            float angle = i * fullAngle / segments;
-            float px = x + cosf(angle) * radius;
-            float py = y + sinf(angle) * radius;
-            glVertex2f(px, py);
-        }
-    glEnd();
-    
-    glDisable(GL_BLEND);
-}
-
 // Create a function to draw text (basic approach with rectangles)
 void drawText(const std::string& text, float x, float y, float size, float r, float g, float b) {
     float spacing = size * 0.6f;
@@ -523,16 +422,6 @@ void drawText(const std::string& text, float x, float y, float size, float r, fl
         }
         x += spacing;
     }
-}
-
-void showNotification(const std::string& text, float r, float g, float b) {
-    notifications.push_back({
-        text,       // Message
-        3.0f,       // Duration (seconds)
-        -0.3f,      // X position
-        0.7f,       // Y position
-        r, g, b     // Color
-    });
 }
 
 int main() {
@@ -623,7 +512,13 @@ int main() {
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetKeyCallback(window, key_callback);
 
-    resetGame();
+    // Initial state: game should be not started
+    gameStarted = false;
+    gameOver = false;
+    powerUps.clear();
+    blocks.clear(); // Clear the blocks
+    // When game is first launched, just set variables instead of calling resetGame
+    // resetGame(); - Remove this call
 
     // Main game loop
     while (!glfwWindowShouldClose(window)) {
@@ -659,35 +554,16 @@ int main() {
 
         // Game state handling
         if (!gameStarted) {
-            // Welcome screen
-            renderText("AVOIDANCE GAME", -0.5f, 0.3f, 0.1f, 1.0f, 1.0f, 0.0f);
-            renderText("Press ENTER to Start", -0.4f, 0.0f, 0.08f, 1.0f, 1.0f, 1.0f);
+            // Welcome screen - just blue background
+            // Nothing will be drawn
         }
         else if (gameOver) {
-            // Game over screen
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-            glColor4f(0.0f, 0.0f, 0.0f, 0.7f);
-            glBegin(GL_QUADS);
-                glVertex2f(-1.0f, 1.0f);
-                glVertex2f(1.0f, 1.0f);
-                glVertex2f(1.0f, -1.0f);
-                glVertex2f(-1.0f, -1.0f);
-            glEnd();
-            glDisable(GL_BLEND);
-            
-            renderText("GAME OVER", -0.4f, 0.3f, 0.15f, 1.0f, 0.2f, 0.2f);
-            
-            std::string scoreStr = "SCORE: " + std::to_string(score);
-            renderText(scoreStr, -0.2f, 0.0f, 0.1f, 1.0f, 1.0f, 1.0f);
-            
-            renderText("PRESS ENTER TO RESTART", -0.4f, -0.3f, 0.08f, 0.8f, 0.8f, 0.8f);
+            // Game over screen - just blue background
+            // Nothing will be drawn
         }
         else if (!isPaused) {
             // Active gameplay
-            // Draw player and light effect
-            drawLightEffect(playerX + 0.05f, -0.8f, 0.2f, 0.0f, 0.8f, 0.0f, 0.3f);
-
+            // Draw player
             if (!isInvisible) {
                 drawRectangle(playerX, -0.8f, 0.1f, 0.1f, 0.0f, 1.0f, 0.0f);
             } else {
@@ -703,8 +579,8 @@ int main() {
                 glDisable(GL_BLEND);
             }
 
-            // Create power-up
-            if (rand() % 500 == 0) {
+            // Create ONLY when gameStarted and !gameOver
+            if (gameStarted && !gameOver && rand() % 500 == 0) {
                 powerUps.push_back({
                     (rand() % 200 - 100) / 100.0f, 
                     1.0f, 
@@ -718,43 +594,31 @@ int main() {
                 it->y -= blockSpeed;
                 drawPowerUp(*it);
 
-                // Add light effect around power-ups
-                float r = 0.0f, g = 0.0f, b = 0.0f;
-                switch (it->type) {
-                    case 1: g = 0.8f; break;
-                    case 2: b = 0.8f; break;
-                    case 3: r = g = 0.6f; break;
-                }
-                drawLightEffect(it->x + 0.04f, it->y, 0.15f, r, g, b, 0.4f);
-
-                // When power-up is collected
+                // Simple version for PowerUp collection code block
                 if (it->y < -0.7f && it->y > -0.9f && it->x < playerX + 0.1f && it->x + 0.1f > playerX) {
                     powerUpSound.play();
                     
-                    // Color based on power-up type
                     switch (it->type) {
                         case 1: // Speed
-                            spawnParticles(it->x + 0.04f, it->y, 0.0f, 1.0f, 0.0f, 15);
                             hasSpeedBoost = true;
                             speedBoostTimer = 20.0f;
                             playerSpeed = originalPlayerSpeed + 0.1f;
-                            showNotification("SPEED BOOST!", 0.0f, 1.0f, 0.0f);
                             break;
+                            
                         case 2: // Block reset
-                            spawnParticles(it->x + 0.04f, it->y, 0.0f, 0.0f, 1.0f, 15);
                             hasBlockReset = true;
                             blockResetTimer = 20.0f;
                             blocks.clear();
                             blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f});
-                            showNotification("BLOCKS RESET!", 0.0f, 0.0f, 1.0f);
                             break;
+                            
                         case 3: // Invisibility
-                            spawnParticles(it->x + 0.04f, it->y, 1.0f, 1.0f, 0.0f, 15);
                             isInvisible = true;
                             invisibilityTimer = 20.0f;
-                            showNotification("INVISIBILITY!", 1.0f, 1.0f, 0.0f);
                             break;
                     }
+                    
+                    // Remove the PowerUp
                     it = powerUps.erase(it);
                 } else if (it->y < -1.0f) {
                     it = powerUps.erase(it);
@@ -769,7 +633,6 @@ int main() {
                 if (speedBoostTimer <= 0) {
                     hasSpeedBoost = false;
                     playerSpeed = originalPlayerSpeed;
-                    showNotification("Speed boost ended", 0.5f, 0.5f, 0.5f);
                 }
             }
 
@@ -781,7 +644,6 @@ int main() {
                     while (blocks.size() < level) {
                         blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f});
                     }
-                    showNotification("Block reset ended", 0.5f, 0.5f, 0.5f);
                 }
             }
 
@@ -789,7 +651,6 @@ int main() {
                 invisibilityTimer -= 0.016f;
                 if (invisibilityTimer <= 0) {
                     isInvisible = false;
-                    showNotification("Invisibility ended", 0.5f, 0.5f, 0.5f);
                 }
             }
 
@@ -803,59 +664,29 @@ int main() {
                     block.y = 1.0f;
                     score++;
                     
-                    // Small brightness effect every 5 points
-                    if (score % 5 == 0) {
-                        spawnParticles(0.0f, 0.9f, 0.0f, 1.0f, 0.5f, 5);
-                    }
-
                     // Level system
                     const int MAX_BLOCKS = 10;
 
-                    // Special effect for each level up
+                    // Simple version for level up
                     if (score % 10 == 0) {
                         levelUpSound.play();
                         level++;
                         blockSpeed += 0.0005f;
                         
-                        // Level up glow
-                        float intensity = 0.4f;
-                        glEnable(GL_BLEND);
-                        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-                        
-                        glColor4f(1.0f, 1.0f, 0.8f, intensity);
-                        glBegin(GL_QUADS);
-                            glVertex2f(-1.0f, 1.0f);
-                            glVertex2f(1.0f, 1.0f);
-                            glVertex2f(1.0f, -1.0f);
-                            glVertex2f(-1.0f, -1.0f);
-                        glEnd();
-                        
-                        glDisable(GL_BLEND);
-                        
-                        // Level up particles
-                        for (int i = 0; i < 5; i++) {
-                            float randomX = -0.9f + ((float)rand() / RAND_MAX) * 1.8f;
-                            float randomY = -0.9f + ((float)rand() / RAND_MAX) * 1.8f;
-                            spawnParticles(randomX, randomY, 1.0f, 1.0f, 0.8f, 10);
-                        }
-                        
                         // Add new block only if under the maximum
                         if (blocks.size() < MAX_BLOCKS) {
                             blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f});
                         }
-                        
-                        showNotification("LEVEL UP!", 1.0f, 1.0f, 0.5f);
                     } else {
                         blockSpeed += 0.00005f; 
                     }
                 }
 
-                // On collision
+                // Simple version for collision
                 if (block.y < -0.7f && block.y > -0.9f && block.x < playerX + 0.1f && block.x + 0.1f > playerX) {
                     if (!isInvisible) {
                         health--;
                         collisionSound.play();
-                        spawnParticles(playerX + 0.05f, -0.8f, 1.0f, 0.3f, 0.2f, 20);
                         
                         if (health <= 0) {
                             gameOverSound.play();
@@ -863,10 +694,9 @@ int main() {
                             gameOver = true;
                             fadeOutEffect = true;
                             fadeAlpha = 0.0f;
-                        } else {
-                            showNotification("OUCH!", 1.0f, 0.0f, 0.0f);
                         }
                     }
+                    
                     // Reset block position regardless of invisibility
                     block.y = 1.0f;  
                     block.x = (rand() % 200 - 100) / 100.0f;
@@ -887,27 +717,6 @@ int main() {
             
             renderText("PAUSED", -0.2f, 0.1f, 0.15f, 1.0f, 1.0f, 1.0f);
             renderText("Press P to Resume", -0.4f, -0.1f, 0.08f, 0.8f, 0.8f, 0.8f);
-        }
-
-        // Update and draw particles always
-        updateParticles(0.016f);
-        drawParticles();
-
-        // Draw and update notifications
-        for (auto it = notifications.begin(); it != notifications.end(); ) {
-            renderText(it->text, it->x, it->y, 0.08f, it->r, it->g, it->b);
-            it->timer -= 0.016f;
-            
-            // Fade out near the end
-            if (it->timer < 0.5f) {
-                // Add fade out effect by changing alpha
-            }
-            
-            if (it->timer <= 0) {
-                it = notifications.erase(it);
-            } else {
-                ++it;
-            }
         }
 
         // Handle fade effects
