@@ -26,7 +26,7 @@ sf::Sound gameOverSound(gameOverBuffer);
 sf::Music sigma;
 
 float playerX = 0.0f; //Player position(Horizontal)
-float playerSpeed = 0.05f;
+float playerSpeed = 0.07f;
 float blockSpeed = 0.01f; // Initial block speed(Increases with level)
 int score = 0;
 int health = 3;
@@ -48,8 +48,18 @@ bool fadeInEffect = false;
 bool fadeOutEffect = false;
 float fadeAlpha = 1.0f;
 
+const int SCORE_PER_LEVEL = 20; // Score needed to level up
+const float LEVEL_SPEED_INCREASE = 0.0003f; // Speed increase per level
+const float NORMAL_SPEED_INCREASE = 0.00003f; // Tiny speed increase per score
+const int MAX_BLOCKS = 10; // Maximum number of blocks
+
 struct Block {
     float x, y;
+    int shape;  // 0 = square, 1 = triangle, 2 = circle
+    float r, g, b; // Block color
+    int movementPattern; // 0 = linear, 1 = zigzag, 2 = circular
+    float movementTimer; // For tracking movement cycles
+    float originX; // Original X position for circular/zigzag patterns
 };
 
 struct PowerUp {
@@ -91,6 +101,7 @@ float originalPlayerSpeed = 0.05f;
 bool hasBlockReset = false;
 float blockResetTimer = 0.0f;
 
+// resetGame() fonksiyonunda blokların hareket paternlerini level'e göre ayarlayalım
 void resetGame() {
     playerX = 0.0f;
     score = 0;
@@ -112,8 +123,26 @@ void resetGame() {
     
     // Removed the particle system
 
+    // resetGame() içinde blokları oluştururken level-based hareket paterni ataması yapalım
     for (int i = 0; i < 3; i++) {
-        blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f});
+        float r = 0.7f + ((float)rand() / RAND_MAX) * 0.3f; // Kırmızı ağırlıklı renk
+        float g = 0.0f + ((float)rand() / RAND_MAX) * 0.3f; 
+        float b = 0.0f + ((float)rand() / RAND_MAX) * 0.3f;
+        
+        float xPos = (rand() % 200 - 100) / 100.0f;
+        
+        // Level 3'ten önce sadece linear hareket (0)
+        int movementPattern = 0; // Başlangıçta her zaman linear
+        
+        blocks.push_back({
+            xPos,                      // x
+            1.0f,                      // y
+            rand() % 3,                // shape (0, 1, or 2)
+            r, g, b,                   // color
+            movementPattern,           // movement pattern (always 0 initially)
+            0.0f,                      // movement timer
+            xPos                       // origin X position
+        });
     }
 
     std::cout << "Game Reset! New game started!" << std::endl;
@@ -424,6 +453,96 @@ void drawText(const std::string& text, float x, float y, float size, float r, fl
     }
 }
 
+void drawTriangle(float x, float y, float size, float r, float g, float b) {
+    glColor3f(r, g, b);
+    glBegin(GL_TRIANGLES);
+        glVertex2f(x, y);
+        glVertex2f(x + size, y);
+        glVertex2f(x + size/2, y - size);
+    glEnd();
+}
+
+// Fix circle drawing function
+void drawCircle(float x, float y, float radius, float r, float g, float b) {
+    const int segments = 20;
+    const float fullCircle = 2.0f * 3.14159f;
+    
+    glColor3f(r, g, b);
+    glBegin(GL_TRIANGLE_FAN);
+        // Center point - make sure this is within bounds
+        float centerX = x + radius/2;
+        float centerY = y - radius/2;
+        glVertex2f(centerX, centerY);
+        
+        // Circle outline points
+        for (int i = 0; i <= segments; i++) {
+            float angle = i * fullCircle / segments;
+            float px = centerX + cos(angle) * radius/2;
+            float py = centerY + sin(angle) * radius/2;
+            glVertex2f(px, py);
+        }
+    glEnd();
+}
+
+// Block'un zorluğunu görsel olarak belirtmek için renk değişimi yapabiliriz
+void drawBlock(const Block& block) {
+    // Hareket paternine göre renk modifikasyonu
+    float r = block.r;
+    float g = block.g;
+    float b = block.b;
+    
+    // Daha zorlu hareket paternleri için rengin parlaklığını artıralım
+    if (block.movementPattern > 0) {
+        // Zigzag ve dairesel hareketlerde rengi hafifçe parlatıyoruz
+        float brightnessFactor = 1.0f + (block.movementPattern * 0.2f);
+        r = std::min(1.0f, r * brightnessFactor);
+        g = std::min(1.0f, g * brightnessFactor);
+        b = std::min(1.0f, b * brightnessFactor);
+    }
+    
+    switch (block.shape) {
+        case 0: // Square
+            drawRectangle(block.x, block.y, 0.1f, 0.1f, r, g, b);
+            break;
+        case 1: // Triangle
+            drawTriangle(block.x, block.y, 0.1f, r, g, b);
+            break;
+        case 2: // Circle
+            drawCircle(block.x, block.y, 0.1f, r, g, b);
+            break;
+    }
+}
+
+// Fix the block movement function to prevent potential out-of-bounds issues
+void updateBlockMovement(Block& block) {
+    // Update position based on movement pattern
+    switch (block.movementPattern) {
+        case 0: // Linear - just move down
+            // y position is updated in the main loop
+            break;
+            
+        case 1: // Zigzag - horizontal sine wave
+            // Make sure the block doesn't go off screen
+            block.x = block.originX + sin(block.movementTimer * 3.0f) * 0.3f;
+            // Clamp to screen boundaries
+            if (block.x < -0.95f) block.x = -0.95f;
+            if (block.x > 0.95f) block.x = 0.95f;
+            block.movementTimer += 0.016f; // Increment timer
+            break;
+            
+        case 2: // Circular - orbit around a center point
+            // Make gentler circular movement
+            block.x = block.originX + sin(block.movementTimer * 1.5f) * 0.15f;
+            // Limit the vertical modification to prevent skipping collision detection
+            block.y += cos(block.movementTimer * 1.5f) * 0.003f; 
+            block.movementTimer += 0.016f;
+            // Clamp to screen boundaries
+            if (block.x < -0.95f) block.x = -0.95f;
+            if (block.x > 0.95f) block.x = 0.95f;
+            break;
+    }
+}
+
 int main() {
     srand(time(0));
     
@@ -609,7 +728,22 @@ int main() {
                             hasBlockReset = true;
                             blockResetTimer = 20.0f;
                             blocks.clear();
-                            blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f});
+                            
+                            // Create at least one valid block with correct initialization
+                            float xPos = (rand() % 200 - 100) / 100.0f;
+                            float r = 0.7f + ((float)rand() / RAND_MAX) * 0.3f;
+                            float g = 0.0f + ((float)rand() / RAND_MAX) * 0.3f;
+                            float b = 0.0f + ((float)rand() / RAND_MAX) * 0.3f;
+                            
+                            blocks.push_back({
+                                xPos,      // x
+                                1.0f,      // y
+                                rand() % 3, // shape
+                                r, g, b,   // color
+                                0,         // movement pattern (start with linear)
+                                0.0f,      // timer
+                                xPos       // originX
+                            });
                             break;
                             
                         case 3: // Invisibility
@@ -654,36 +788,129 @@ int main() {
                 }
             }
 
-            // Update and draw blocks
+            // Ana oyun döngüsünde, blokları çizme ve güncellemede kullanacağız
             for (auto& block : blocks) {
+                // Update block's y position (common for all blocks)
                 block.y -= blockSpeed;
-                drawRectangle(block.x, block.y, 0.1f, 0.1f, 1.0f, 0.0f, 0.0f);
+                
+                // Update block's movement based on pattern
+                updateBlockMovement(block);
+                
+                // Draw block
+                drawBlock(block);
 
+                // Ana oyun döngüsünde, block'un düşüşünün sonundaki kod (block.y < -1.0f durumu)
                 if (block.y < -1.0f) {
-                    block.x = (rand() % 200 - 100) / 100.0f;
+                    float xPos = (rand() % 200 - 100) / 100.0f;
+                    block.x = xPos;
                     block.y = 1.0f;
+                    block.originX = xPos; // Set new origin X
+                    // Yeni şekil, renk ve hareket paterni atayalım
+                    block.shape = rand() % 3;
+                    block.r = 0.7f + ((float)rand() / RAND_MAX) * 0.3f;
+                    block.g = 0.0f + ((float)rand() / RAND_MAX) * 0.3f;
+                    block.b = 0.0f + ((float)rand() / RAND_MAX) * 0.3f;
+                    
+                    // Level 3'e kadar sadece linear (0) hareket
+                    block.movementPattern = (level < 3) ? 0 : rand() % 3;
+                    block.movementTimer = 0.0f;
+                    
                     score++;
                     
                     // Level system
                     const int MAX_BLOCKS = 10;
 
-                    // Simple version for level up
-                    if (score % 10 == 0) {
+                    // Level up kısmında daha zorlu hareket paternlerinin olasılığını artıralım
+                    // Updated level-up code using constants
+                    if (score % SCORE_PER_LEVEL == 0) {
                         levelUpSound.play();
                         level++;
-                        blockSpeed += 0.0005f;
+                        blockSpeed += LEVEL_SPEED_INCREASE;
                         
                         // Add new block only if under the maximum
                         if (blocks.size() < MAX_BLOCKS) {
-                            blocks.push_back({(rand() % 200 - 100) / 100.0f, 1.0f});
+                            float r = 0.7f + ((float)rand() / RAND_MAX) * 0.3f;
+                            float g = 0.0f + ((float)rand() / RAND_MAX) * 0.3f;
+                            float b = 0.0f + ((float)rand() / RAND_MAX) * 0.3f;
+                            
+                            float newXPos = (rand() % 200 - 100) / 100.0f;
+                            
+                            // Level ilerledikçe daha karmaşık paternlerin olasılığı artsın
+                            int movementPattern;
+                            
+                            // Level 3'e kadar sadece linear hareket (0)
+                            if (level < 3) {
+                                movementPattern = 0; // Sadece linear hareket
+                            } else {
+                                // Level 3 ve sonrası için karmaşık hareketler
+                                int randomVal = rand() % 100;
+                                if (randomVal < 30) { 
+                                    movementPattern = 0; // %30 linear
+                                } else if (randomVal < 70) { 
+                                    movementPattern = 1; // %40 zigzag
+                                } else {
+                                    movementPattern = 2; // %30 circular
+                                }
+                            }
+                            
+                            blocks.push_back({
+                                newXPos,               // x
+                                1.0f,                  // y
+                                rand() % 3,            // shape
+                                r, g, b,               // color
+                                movementPattern,       // movement pattern (level-based)
+                                0.0f,                  // movement timer
+                                newXPos                // origin X position
+                            });
                         }
                     } else {
-                        blockSpeed += 0.00005f; 
+                        blockSpeed += NORMAL_SPEED_INCREASE;
                     }
                 }
 
-                // Simple version for collision
-                if (block.y < -0.7f && block.y > -0.9f && block.x < playerX + 0.1f && block.x + 0.1f > playerX) {
+                // Çarpışma kontrolünde şekil farklılıklarına göre ayarlama yapalım
+                bool collision = false;
+                
+                // Şekle göre çarpışma kontrolü
+                switch (block.shape) {
+                    case 0: // Square - mevcut dikdörtgen çarpışma kontrolü
+                        collision = (block.y < -0.7f && block.y > -0.9f && 
+                                     block.x < playerX + 0.1f && block.x + 0.1f > playerX);
+                        break;
+                    case 1: // Triangle - üçgen çarpışma kontrolü (daha basit bir yaklaşım)
+                        collision = (block.y - 0.05f < -0.7f && block.y > -0.9f && 
+                                     block.x < playerX + 0.1f && block.x + 0.1f > playerX);
+                        break;
+                    case 2: // Circle - daire çarpışma kontrolü
+                        {
+                            // Simplify circle collision to be more reliable
+                            float circleX = block.x + 0.05f; // Daire merkezi X
+                            float circleY = block.y - 0.05f; // Daire merkezi Y
+                            float radius = 0.05f;           // Dairenin yarıçapı
+                            
+                            // Player rectangle bounds
+                            float playerLeft = playerX;
+                            float playerRight = playerX + 0.1f;
+                            float playerTop = -0.8f;
+                            float playerBottom = -0.9f;
+                            
+                            // Find closest point on rectangle to circle
+                            float closestX = std::max(playerLeft, std::min(circleX, playerRight));
+                            float closestY = std::max(playerBottom, std::min(circleY, playerTop));
+                            
+                            // Calculate distance from closest point to circle center
+                            float distanceX = circleX - closestX;
+                            float distanceY = circleY - closestY;
+                            float distanceSquared = distanceX * distanceX + distanceY * distanceY;
+                            
+                            // If distance is less than radius, collision occurred
+                            collision = (distanceSquared <= (radius * radius));
+                        }
+                        break;
+                }
+                
+                // Çarpışmadan sonra blok sıfırlanırken
+                if (collision) {
                     if (!isInvisible) {
                         health--;
                         collisionSound.play();
@@ -698,8 +925,19 @@ int main() {
                     }
                     
                     // Reset block position regardless of invisibility
-                    block.y = 1.0f;  
-                    block.x = (rand() % 200 - 100) / 100.0f;
+                    float xPos = (rand() % 200 - 100) / 100.0f;
+                    block.x = xPos;
+                    block.y = 1.0f;
+                    block.originX = xPos;
+                    
+                    // Yeni şekil, renk ve hareket paterni atayalım
+                    block.shape = rand() % 3;
+                    // Level 3'e kadar sadece linear (0) hareket
+                    block.movementPattern = (level < 3) ? 0 : rand() % 3;
+                    block.movementTimer = 0.0f;
+                    block.r = 0.7f + ((float)rand() / RAND_MAX) * 0.3f;
+                    block.g = 0.0f + ((float)rand() / RAND_MAX) * 0.3f;
+                    block.b = 0.0f + ((float)rand() / RAND_MAX) * 0.3f;
                 }
             }
         } else {
