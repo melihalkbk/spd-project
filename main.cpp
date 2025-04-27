@@ -733,10 +733,10 @@ void drawPowerUp(const PowerUp& powerUp) {
             r = 1.0f;
             b = 1.0f;
             break;
-        case 6: // Extra life - Parlak Pembe/Mor
+        case 6: // Extra life - Bright Pink/Purple
             r = 1.0f;
-            g = 0.2f;  // Biraz yeşil ekle
-            b = 0.8f;  // Mor tonları için mavi ekle
+            g = 0.2f;  // Add a little green
+            b = 0.8f;  // Add blue for purple tones
             break;
     }
     
@@ -950,6 +950,7 @@ void drawBackgroundEffects() {
     
     // Bu fonksiyon içindeki static değişkenler sorun çıkarabilir
     // Özellikle background lines kısmında
+    // Especially in the background lines section
     
     // Level-based background effects için daha güvenli kod
     if (level >= 5) {
@@ -1485,7 +1486,7 @@ int main() {
                                         
                                         // Basit sarı parçacıklar => // Simple yellow particles
                                         createParticle(centerX, centerY, vx, vy, 
-                                                      1.0f, 1.0f, 0.0f, // sarı
+                                                      1.0f, 1.0f, 0.0f, // yellow
                                                       1.0f, 0.5f, 0.03f); // alpha, lifetime, size
                                     }
                                     
@@ -1504,8 +1505,8 @@ int main() {
                                         blocks.push_back({
                                             xPos,      // x
                                             1.0f,      // y
-                                            0,         // shape - kare (en basit)
-                                            1.0f, 0.0f, 0.0f, // kırmızı
+                                            0,         // shape - square (simplest)
+                                            1.0f, 0.0f, 0.0f, // red
                                             0,         // hareket - doğrusal (en basit) => // movement - linear (simplest)
                                             0.0f,      // timer
                                             xPos       // originX
