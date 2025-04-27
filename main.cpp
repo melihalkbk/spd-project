@@ -1,132 +1,132 @@
-#define SFML_DEBUG  // Add for debug messages
-#include <GL/glew.h> //Add for graphic design
-#include <GLFW/glfw3.h> //Add for graphic design
-#include <SFML/Audio.hpp> //Add for sound
-#include <iostream> //For input-output stream
-#include <vector> //For vector operations
-#include <cstdlib> //For random number generation
-#include <ctime> //For time
-#include <sstream> //For string stream
-#include <filesystem> // For directory operations
-#include <optional>   // For optional type 
-#include <map>  // For std::map
+#define SFML_DEBUG  // Hata ayıklama mesajları için ekle
+#include <GL/glew.h> // Grafik tasarımı için ekle
+#include <GLFW/glfw3.h> // Grafik tasarımı için ekle
+#include <SFML/Audio.hpp> // Ses için ekle
+#include <iostream> // Giriş-çıkış akışı için
+#include <vector> // Vektör işlemleri için
+#include <cstdlib> // Rastgele sayı üretimi için
+#include <ctime> // Zaman için
+#include <sstream> // String akışı için
+#include <filesystem> // Dizin işlemleri için
+#include <optional> // İsteğe bağlı tip için
+#include <map> // std::map için
 #include <memory>
 #include <algorithm>
 
-// Define sound buffer objects
+// Ses arabellek nesnelerini tanımla
 sf::SoundBuffer collisionBuffer;
 sf::SoundBuffer powerUpBuffer;
 sf::SoundBuffer levelUpBuffer;
 sf::SoundBuffer gameOverBuffer;
 
-// Define sound objects with initial buffer
+// İlk arabellekle ses nesnelerini tanımla
 sf::Sound collisionSound(collisionBuffer);
 sf::Sound powerUpSound(powerUpBuffer);
 sf::Sound levelUpSound(levelUpBuffer);
 sf::Sound gameOverSound(gameOverBuffer);
-sf::Music sigma;
+sf::Music sigma; // Sigma müziğini koru
 
-float playerX = 0.0f; //Player position(Horizontal)
+float playerX = 0.0f; // Oyuncu pozisyonu (Yatay)
 float playerSpeed = 0.07f;
-float blockSpeed = 0.01f; // Initial block speed(Increases with level)
+float blockSpeed = 0.01f; // İlk blok hızı (Seviye ile artar)
 int score = 0;
 int health = 3;
 int level = 1;  
 bool gameOver = false;
 bool gameStarted = false;
 float backgroundColor = 0.0f;
-bool colorIncreasing = true; // Background color animation direction
+bool colorIncreasing = true; // Arka plan renk animasyon yönü
 
-// Sound control
+// Ses kontrolü
 bool isMuted = false; 
-float previousVolume = 30.0f;  // Store previous volume for unmuting
+float previousVolume = 30.0f;  // Sesi açmak için önceki sesi sakla
 
-// Game state
+// Oyun durumu
 bool isPaused = false;
 
-// Transition effects
+// Geçiş efektleri
 bool fadeInEffect = false;
 bool fadeOutEffect = false;
 float fadeAlpha = 1.0f;
 
-const int SCORE_PER_LEVEL = 20; // Score needed to level up
-const float LEVEL_SPEED_INCREASE = 0.0003f; // Speed increase per level
-const float NORMAL_SPEED_INCREASE = 0.00003f; // Tiny speed increase per score
-const int MAX_BLOCKS = 10; // Maximum number of blocks
+const int SCORE_PER_LEVEL = 20; // Seviye atlamak için gereken puan
+const float LEVEL_SPEED_INCREASE = 0.0003f; // Seviye başına hız artışı
+const float NORMAL_SPEED_INCREASE = 0.00003f; // Puan başına küçük hız artışı
+const int MAX_BLOCKS = 10; // Maksimum blok sayısı
 
 struct Block {
     float x, y;
-    int shape;  // 0 = square, 1 = triangle, 2 = circle
-    float r, g, b; // Block color
-    int movementPattern; // 0 = linear, 1 = zigzag, 2 = circular
-    float movementTimer; // For tracking movement cycles
-    float originX; // Original X position for circular/zigzag patterns
+    int shape;  // 0 = kare, 1 = üçgen, 2 = daire
+    float r, g, b; // Blok rengi
+    int movementPattern; // 0 = doğrusal, 1 = zigzag, 2 = dairesel
+    float movementTimer; // Hareket döngülerini takip için
+    float originX; // Dairesel/zigzag desenler için orijinal X pozisyonu
 };
 
 struct PowerUp {
     float x, y;
-    int type;  // 1 = speed, 2 = block reset, 3 = invisibility, 4 = time slow, 5 = shield, 6 = extra life
-    float duration;  // Power-up duration
+    int type;  // 1 = hız, 2 = blok sıfırlama, 3 = görünmezlik, 4 = zaman yavaşlatma, 5 = kalkan, 6 = ekstra can
+    float duration;  // Güç-artırma süresi
 };
 
-// Handle time slow power-up
+// Zaman yavaşlatma güç-artırımını işle
 bool hasTimeSlow = false;
 float timeSlowTimer = 0.0f;
 float timeSlowFactor = 1.0f;
 
-// Handle shield power-up
+// Kalkan güç-artırımını işle
 bool hasShield = false;
 float shieldTimer = 0.0f;
 
-// Font texture and character info
+// Font dokusu ve karakter bilgisi
 struct Character {
-    float advanceX;    // Advance X offset
-    float advanceY;    // Advance Y offset
-    float width;       // Character width
-    float height;      // Character height
-    float texX;        // Texture X offset
-    float texY;        // Texture Y offset
-    float texWidth;    // Texture width
-    float texHeight;   // Texture height
+    float advanceX;    // İlerleme X ofseti
+    float advanceY;    // İlerleme Y ofseti
+    float width;       // Karakter genişliği
+    float height;      // Karakter yüksekliği
+    float texX;        // Doku X ofseti
+    float texY;        // Doku Y ofseti
+    float texWidth;    // Doku genişliği
+    float texHeight;   // Doku yüksekliği
 };
 
-// Font texture and characters
+// Font dokusu ve karakterleri
 GLuint fontTextureID = 0;
 std::map<char, Character> characters;
 bool fontLoaded = false;
 
-// Font texture size
+// Font dokusu boyutu
 const int FONT_TEXTURE_WIDTH = 512;
 const int FONT_TEXTURE_HEIGHT = 512;
 
 std::vector<Block> blocks;
 std::vector<PowerUp> powerUps;
-bool isInvisible = false; // Invisibility state
+bool isInvisible = false; // Görünmezlik durumu
 float invisibilityTimer = 0.0f; 
 
-// Power-up variables
+// Güç-artırma değişkenleri
 bool hasSpeedBoost = false;
 float speedBoostTimer = 0.0f;
 float originalPlayerSpeed = 0.05f;
 bool hasBlockReset = false;
 float blockResetTimer = 0.0f;
 
-// Particle structure
+// Parçacık yapısı
 struct Particle {
-    float x, y;          // Position
-    float vx, vy;        // Velocity vector
-    float r, g, b, a;    // Color (red, green, blue, alpha)
-    float lifetime;      // Lifetime
-    float size;          // Size
-    float rotation;      // Rotation angle (degrees)
-    float rotationSpeed; // Rotation speed
+    float x, y;          // Pozisyon
+    float vx, vy;        // Hız vektörü
+    float r, g, b, a;    // Renk (kırmızı, yeşil, mavi, alfa)
+    float lifetime;      // Ömür
+    float size;          // Boyut
+    float rotation;      // Dönüş açısı (derece)
+    float rotationSpeed; // Dönüş hızı
 };
 
-// Global variables for particle system
+// Parçacık sistemi için global değişkenler
 std::vector<Particle> particles;
 const int MAX_PARTICLES = 200;
 
-// Function to create a particle
+// Parçacık oluşturma fonksiyonu
 void createParticle(float x, float y, float vx, float vy, 
                    float r, float g, float b, float a,
                    float lifetime, float size, float rotation = 0.0f, float rotationSpeed = 0.0f) {
@@ -189,7 +189,7 @@ void updateParticles(float deltaTime) {
     );
 }
 
-// Function to draw different particle shapes
+// Farklı parçacık şekilleri çizmek için fonksiyon
 void drawParticle(const Particle& p) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -198,7 +198,7 @@ void drawParticle(const Particle& p) {
     glTranslatef(p.x, p.y, 0.0f);
     glRotatef(p.rotation, 0.0f, 0.0f, 1.0f);
     
-    // Square particle
+    // Kare parçacık
     glColor4f(p.r, p.g, p.b, p.a);
     glBegin(GL_QUADS);
         glVertex2f(-p.size/2, -p.size/2);
@@ -221,45 +221,45 @@ void drawParticles() {
     }
 }
 
-// Function for collision animation
+// Çarpışma animasyonu için fonksiyon
 void createBlockExplosion(float x, float y, float r, float g, float b) {
-    // Number of particles
+    // Parçacık sayısı
     const int numParticles = 20;
     
-    // Spread range of particles
+    // Parçacıkların yayılma aralığı
     const float spread = 0.15f;
     
     for (int i = 0; i < numParticles; i++) {
-        // Create random velocity vector
+        // Rastgele hız vektörü oluştur
         float angle = (rand() % 360) * 3.14159f / 180.0f;
         float speed = 0.1f + (rand() % 100) / 500.0f;
         float vx = cos(angle) * speed;
         float vy = sin(angle) * speed;
         
-        // Particle size
+        // Parçacık boyutu
         float size = 0.01f + (rand() % 100) / 2000.0f;
         
-        // Lifetime
+        // Ömür
         float lifetime = 0.5f + (rand() % 100) / 200.0f;
         
-        // Add color variation
+        // Renk varyasyonu ekle
         float colorVar = 0.2f;
         float rVal = r + ((rand() % 100) / 100.0f - 0.5f) * colorVar;
         float gVal = g + ((rand() % 100) / 100.0f - 0.5f) * colorVar;
         float bVal = b + ((rand() % 100) / 100.0f - 0.5f) * colorVar;
         
-        // Clamp values
+        // Değerleri sınırla
         rVal = std::max(0.0f, std::min(1.0f, rVal));
         gVal = std::max(0.0f, std::min(1.0f, gVal));
         bVal = std::max(0.0f, std::min(1.0f, bVal));
         
-        // Random starting position (around the block)
+        // Rastgele başlangıç pozisyonu (bloğun etrafında)
         float startX = x + ((rand() % 100) / 100.0f - 0.5f) * 0.1f;
         float startY = y + ((rand() % 100) / 100.0f - 0.5f) * 0.1f;
         
-        // Create particle
+        // Parçacık oluştur
         float rotation = rand() % 360;
-        float rotationSpeed = ((rand() % 200) - 100) * 2.0f; // -200 to 200 degs/sec
+        float rotationSpeed = ((rand() % 200) - 100) * 2.0f; // -200 ile 200 derece/san arası
         
         createParticle(startX, startY, vx, vy, rVal, gVal, bVal, 1.0f, lifetime, size, rotation, rotationSpeed);
     }
@@ -267,10 +267,10 @@ void createBlockExplosion(float x, float y, float r, float g, float b) {
 
 // Level up efektini oluşturan fonksiyonu düzelt
 void createLevelUpEffect() {
-    // Clear existing particles to prevent overflow
+    // Taşmayı önlemek için mevcut parçacıkları temizle
     particles.clear(); // Mevcut tüm parçacıkları temizle, kararlılık için
     
-    // Limit the number of particles
+    // Parçacık sayısını sınırla
     const int numRings = 2; // 3'ten 2'ye düşür
     const int particlesPerRing = 20; // 30'dan 20'ye düşür
     
@@ -281,15 +281,15 @@ void createLevelUpEffect() {
         for (int i = 0; i < particlesPerRing; i++) {
             float angle = (i * 360.0f / particlesPerRing) * 3.14159f / 180.0f;
             
-            // Particles move outward in circular motion
+            // Parçacıklar dairesel harekette dışa doğru hareket eder
             float vx = cos(angle) * 0.2f;
             float vy = sin(angle) * 0.2f;
             
-            // Starting position on ring
-            float x = cos(angle) * (0.05f + ring * 0.05f); // Start near center
+            // Halkadaki başlangıç pozisyonu
+            float x = cos(angle) * (0.05f + ring * 0.05f); // Merkeze yakın başla
             float y = sin(angle) * (0.05f + ring * 0.05f);
             
-            // Golden-yellow particles
+            // Altın-sarı parçacıklar
             float r = 1.0f;
             float g = 0.9f - ring * 0.2f;
             float b = 0.4f - ring * 0.1f;
@@ -298,16 +298,16 @@ void createLevelUpEffect() {
         }
     }
     
-    // Limit white sparkles
+    // Beyaz parıltıları sınırla
     const int maxSparkles = 20; // 50'den 20'ye düşür
     for (int i = 0; i < maxSparkles; i++) {
         float angle = (rand() % 360) * 3.14159f / 180.0f;
-        float dist = (rand() % 100) / 200.0f; // 0 to 0.5
+        float dist = (rand() % 100) / 200.0f; // 0 ile 0.5 arası
         
         float x = cos(angle) * dist;
         float y = sin(angle) * dist;
         
-        // Velocity vector outward from center
+        // Merkezden dışa doğru hız vektörü
         float speed = 0.05f + (rand() % 100) / 500.0f;
         float vx = cos(angle) * speed;
         float vy = sin(angle) * speed;
@@ -315,31 +315,31 @@ void createLevelUpEffect() {
         float size = 0.01f + (rand() % 100) / 2000.0f;
         float lifetime = 0.5f + (rand() % 100) / 200.0f;
         
-        // White sparkle
-        float whiteness = 0.8f + (rand() % 20) / 100.0f; // 0.8 to 1.0
+        // Beyaz parıltı
+        float whiteness = 0.8f + (rand() % 20) / 100.0f; // 0.8 ile 1.0 arası
         createParticle(x, y, vx, vy, whiteness, whiteness, whiteness, 0.9f, lifetime, size);
     }
 }
 
-// Effect for collecting extra life
+// Ekstra can toplama efekti
 void createHeartEffect(float x, float y) {
-    // Create heart-shaped particles
+    // Kalp şeklinde parçacıklar oluştur
     for (int i = 0; i < 20; i++) {
         float angle = (rand() % 360) * 3.14159f / 180.0f;
         float speed = 0.05f + (rand() % 100) / 1000.0f;
         float vx = cos(angle) * speed;
-        float vy = sin(angle) * speed + 0.01f; // Slight upward bias
+        float vy = sin(angle) * speed + 0.01f; // Hafif yukarı yönelim
         
         float size = 0.01f + (rand() % 100) / 5000.0f;
         float lifetime = 1.0f + (rand() % 100) / 200.0f;
         
-        // Heart-shaped particles are red/pink
+        // Kalp şeklindeki parçacıklar kırmızı/pembe
         createParticle(x, y, vx, vy, 1.0f, 0.2f + (rand() % 50) / 100.0f, 0.4f, 
                       1.0f, lifetime, size, 0, (rand() % 200) - 100);
     }
 }
 
-// Effect for shield breaking
+// Kalkan kırılma efekti
 void createShieldBreakEffect(float x, float y) {
     const int numParticles = 30;
     const float radius = 0.15f;
@@ -347,43 +347,43 @@ void createShieldBreakEffect(float x, float y) {
     for (int i = 0; i < numParticles; i++) {
         float angle = (i * 360.0f / numParticles) * 3.14159f / 180.0f;
         
-        // Particles start at shield radius
+        // Parçacıklar kalkan yarıçapında başlar
         float startX = x + cos(angle) * radius;
         float startY = y + sin(angle) * radius;
         
-        // Velocity outward
+        // Dışa doğru hız
         float speed = 0.1f + (rand() % 100) / 500.0f;
         float vx = cos(angle) * speed;
         float vy = sin(angle) * speed;
         
-        // Shield particles are blue/cyan
+        // Kalkan parçacıkları mavi/camgöbeği
         createParticle(startX, startY, vx, vy, 0.3f, 0.8f, 1.0f, 
                       0.8f, 0.5f, 0.02f, rand() % 360, (rand() % 400) - 200);
     }
 }
 
-// Massive explosion effect
+// Büyük patlama efekti
 void createMassiveExplosion(float x, float y, float radius) {
-    // First, create a bright flash
+    // Önce parlak bir flaş oluştur
     for (int i = 0; i < 50; i++) {
         float angle = (rand() % 360) * 3.14159f / 180.0f;
         float distance = (rand() % 100) / 100.0f * radius;
         float startX = x + cos(angle) * distance;
         float startY = y + sin(angle) * distance;
         
-        // Flash particles - bright white/yellow and short-lived
+        // Flaş parçacıkları - parlak beyaz/sarı ve kısa ömürlü
         createParticle(startX, startY, 0, 0, 1.0f, 1.0f, 0.8f, 
                       0.9f, 0.2f, 0.05f + (rand() % 100) / 1000.0f);
     }
     
-    // Then create explosion debris
+    // Sonra patlama molozları oluştur
     for (int i = 0; i < 100; i++) {
         float angle = (rand() % 360) * 3.14159f / 180.0f;
         float speed = 0.1f + (rand() % 200) / 500.0f;
         float vx = cos(angle) * speed;
         float vy = sin(angle) * speed;
         
-        // Explosion particles - red/orange with longer lifetime
+        // Patlama parçacıkları - kırmızı/turuncu ve daha uzun ömürlü
         float r = 0.8f + (rand() % 20) / 100.0f;
         float g = 0.3f + (rand() % 40) / 100.0f;
         float b = 0.0f;
@@ -393,16 +393,16 @@ void createMassiveExplosion(float x, float y, float radius) {
                       rand() % 360, (rand() % 400) - 200);
     }
     
-    // Add smoke particles that linger
+    // Kalıcı duman parçacıkları ekle
     for (int i = 0; i < 40; i++) {
         float angle = (rand() % 360) * 3.14159f / 180.0f;
         float speed = 0.03f + (rand() % 100) / 2000.0f;
         float vx = cos(angle) * speed;
-        float vy = sin(angle) * speed + 0.01f; // Slight upward drift
+        float vy = sin(angle) * speed + 0.01f; // Hafif yukarı yönelim
         
         float gray = 0.2f + (rand() % 60) / 100.0f;
         
-        // Create larger, slower smoke particles
+        // Daha büyük, daha yavaş duman parçacıkları oluştur
         createParticle(x, y, vx, vy, gray, gray, gray, 
                       0.7f, 2.0f + (rand() % 100) / 100.0f, 
                       0.04f + (rand() % 100) / 1000.0f, 
@@ -410,7 +410,7 @@ void createMassiveExplosion(float x, float y, float radius) {
     }
 }
 
-// Set block movement patterns based on level in resetGame() function
+// resetGame() fonksiyonunda seviyeye dayalı blok hareket desenleri ayarla
 void resetGame() {
     playerX = 0.0f;
     score = 0;
@@ -438,36 +438,36 @@ void resetGame() {
     // Parçacıkları temizle
     particles.clear();
 
-    // Create blocks with level-based movement pattern assignment in resetGame()
+    // resetGame() içinde seviye tabanlı hareket deseni atamasıyla bloklar oluştur
     for (int i = 0; i < 3; i++) {
-        float r = 0.7f + ((float)rand() / RAND_MAX) * 0.3f; // Predominantly red color
+        float r = 0.7f + ((float)rand() / RAND_MAX) * 0.3f; // Ağırlıklı kırmızı renk
         float g = 0.0f + ((float)rand() / RAND_MAX) * 0.3f; 
         float b = 0.0f + ((float)rand() / RAND_MAX) * 0.3f;
         
         float xPos = (rand() % 200 - 100) / 100.0f;
         
-        // Only linear movement (0) before level 3
-        int movementPattern = 0; // Always linear initially
+        // Seviye 3'ten önce sadece doğrusal hareket (0)
+        int movementPattern = 0; // Başlangıçta her zaman doğrusal
         
         blocks.push_back({
             xPos,                      // x
             1.0f,                      // y
-            rand() % 3,                // shape (0, 1, or 2)
-            r, g, b,                   // color
-            movementPattern,           // movement pattern (always 0 initially)
-            0.0f,                      // movement timer
-            xPos                       // origin X position
+            rand() % 3,                // şekil (0, 1 veya 2)
+            r, g, b,                   // renk
+            movementPattern,           // hareket deseni (başlangıçta her zaman 0)
+            0.0f,                      // hareket sayacı
+            xPos                       // başlangıç X pozisyonu
         });
     }
 
-    std::cout << "Game Reset! New game started!" << std::endl;
+    std::cout << "Oyun Sıfırlandı! Yeni oyun başladı!" << std::endl;
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
 }
 
-// Forward declarations
+// İleriye dönük bildirimler
 void drawText(const std::string& text, float x, float y, float size, float r, float g, float b);
 bool loadFont();
 void renderText(const std::string& text, float x, float y, float scale, float r, float g, float b);
@@ -476,8 +476,8 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     if (action == GLFW_PRESS) {
         if (!gameStarted && key == GLFW_KEY_ENTER) {
             gameStarted = true;
-            resetGame(); // We call this function
-            powerUps.clear();  // Clear all power-ups
+            resetGame(); // Bu fonksiyonu çağırıyoruz
+            powerUps.clear();  // Tüm güç artırımlarını temizle
             fadeInEffect = true;
             fadeAlpha = 1.0f;
             sigma.play();
@@ -494,10 +494,10 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
                 isPaused = !isPaused;
                 if (isPaused) {
                     sigma.pause();
-                    std::cout << "Game Paused" << std::endl;
+                    std::cout << "Oyun Duraklatıldı" << std::endl;
                 } else {
                     sigma.play();
-                    std::cout << "Game Resumed" << std::endl;
+                    std::cout << "Oyun Devam Ediyor" << std::endl;
                 }
             }
             else if (key == GLFW_KEY_M) {
@@ -509,18 +509,18 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
                     powerUpSound.setVolume(0.0f);
                     levelUpSound.setVolume(0.0f);
                     gameOverSound.setVolume(0.0f);
-                    std::cout << "Sound muted" << std::endl;
+                    std::cout << "Ses kapatıldı" << std::endl;
                 } else {
                     sigma.setVolume(previousVolume);
                     collisionSound.setVolume(100.0f);
                     powerUpSound.setVolume(100.0f);
                     levelUpSound.setVolume(100.0f);
                     gameOverSound.setVolume(100.0f);
-                    std::cout << "Sound unmuted" << std::endl;
+                    std::cout << "Ses açıldı" << std::endl;
                 }
             }
             
-            // Player movement in active game
+            // Aktif oyunda oyuncu hareketi
             if (!isPaused) {
                 if (key == GLFW_KEY_LEFT && playerX > -0.9f) playerX -= playerSpeed;
                 if (key == GLFW_KEY_RIGHT && playerX < 0.9f) playerX += playerSpeed;
@@ -540,23 +540,23 @@ void drawRectangle(float x, float y, float width, float height, float r, float g
 }
 
 bool loadFont() {
-    // Create a pixel array for a simple monospaced font
+    // Basit tek genişlikli font için piksel dizisi oluştur
     unsigned char* fontData = new unsigned char[FONT_TEXTURE_WIDTH * FONT_TEXTURE_HEIGHT * 4];
     
-    // Clear font texture to transparent black
+    // Font dokusunu şeffaf siyaha temizle
     for (int i = 0; i < FONT_TEXTURE_WIDTH * FONT_TEXTURE_HEIGHT * 4; i += 4) {
-        fontData[i] = 255;     // R
-        fontData[i+1] = 255;   // G
-        fontData[i+2] = 255;   // B
-        fontData[i+3] = 0;     // A (transparent)
+        fontData[i] = 255;     // K
+        fontData[i+1] = 255;   // Y
+        fontData[i+2] = 255;   // M
+        fontData[i+3] = 0;     // A (şeffaf)
     }
     
-    // Simple bitmap font
+    // Basit bitmap font
     const int charWidth = 16;
     const int charHeight = 24;
     const int charsPerRow = FONT_TEXTURE_WIDTH / charWidth;
     
-    // Draw basic characters
+    // Temel karakterleri çiz
     for (int c = 32; c < 128; c++) {
         int row = (c - 32) / charsPerRow;
         int col = (c - 32) % charsPerRow;
@@ -564,12 +564,12 @@ bool loadFont() {
         int startX = col * charWidth;
         int startY = row * charHeight;
         
-        // Draw character
+        // Karakter çiz
         for (int y = 0; y < charHeight; y++) {
             for (int x = 0; x < charWidth; x++) {
                 int pixelPos = ((startY + y) * FONT_TEXTURE_WIDTH + (startX + x)) * 4;
                 
-                // Simple algorithm to draw letter shapes
+                // Harf şekilleri çizmek için basit algoritma
                 bool isPixelSet = false;
                 
                 switch (c) {
@@ -593,21 +593,21 @@ bool loadFont() {
                                     (y == charHeight-1 && x > 0));
                         break;
                     default:
-                        // For other characters, create a simple placeholder
+                        // Diğer karakterler için basit bir yer tutucu oluştur
                         isPixelSet = (x == 0 || y == 0 || x == charWidth-1 || y == charHeight-1 || 
                                      x == y || x == charWidth-y);
                 }
                 
                 if (isPixelSet) {
-                    fontData[pixelPos] = 255;     // R
-                    fontData[pixelPos+1] = 255;   // G
-                    fontData[pixelPos+2] = 255;   // B
-                    fontData[pixelPos+3] = 255;   // A (opaque)
+                    fontData[pixelPos] = 255;     // K
+                    fontData[pixelPos+1] = 255;   // Y
+                    fontData[pixelPos+2] = 255;   // M
+                    fontData[pixelPos+3] = 255;   // A (opak)
                 }
             }
         }
         
-        // Add character to mapping
+        // Karakteri eşlemeye ekle
         Character ch;
         ch.advanceX = charWidth;
         ch.advanceY = 0;
@@ -621,19 +621,19 @@ bool loadFont() {
         characters[c] = ch;
     }
     
-    // Create the texture
+    // Dokuyu oluştur
     glGenTextures(1, &fontTextureID);
     glBindTexture(GL_TEXTURE_2D, fontTextureID);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, FONT_TEXTURE_WIDTH, FONT_TEXTURE_HEIGHT, 0, 
                 GL_RGBA, GL_UNSIGNED_BYTE, fontData);
     
-    // Set texture parameters
+    // Doku parametrelerini ayarla
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     
-    // Clean up
+    // Temizleme
     delete[] fontData;
     
     fontLoaded = true;
@@ -643,7 +643,7 @@ bool loadFont() {
 void renderText(const std::string& text, float x, float y, float scale, float r, float g, float b) {
     if (!fontLoaded) {
         if (!loadFont()) {
-            // If font loading fails, fall back to rectangle-based text
+            // Font yükleme başarısız olursa, dikdörtgen tabanlı metne geri dön
             drawText(text, x, y, scale, r, g, b);
             return;
         }
